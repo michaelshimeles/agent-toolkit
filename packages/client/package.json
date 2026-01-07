@@ -1,0 +1,40 @@
+{
+  "name": "@mcphub/client",
+  "version": "0.1.0",
+  "description": "MCP Hub client for connecting Claude Desktop to the MCP Hub platform",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "mcphub-client": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "ai",
+    "integrations"
+  ],
+  "author": "MCP Hub",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "commander": "^12.1.0",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
