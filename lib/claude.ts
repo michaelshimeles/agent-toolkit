@@ -63,45 +63,99 @@ Your task:
 2. Generate MCP tool definitions for each endpoint
 3. Implement proper error handling and validation
 4. Use TypeScript with strict types
-5. Follow MCP protocol specifications exactly
+5. Follow MCP protocol specifications exactly - using JSON-RPC 2.0
 
-CRITICAL AUTHENTICATION REQUIREMENT:
-All MCP servers MUST validate the X-API-Key header for authentication. This is the user's MCP Hub API key.
-- Check for headers["x-api-key"] at the start of every handler
-- Return 401 Unauthorized if the key is missing
-- The API key validates the user's identity for MCP Hub
+CRITICAL: MCP Protocol Requirements
+The server MUST implement JSON-RPC 2.0 protocol for MCP compatibility with clients like Cursor, Claude Desktop, etc.
+- All MCP methods are called via POST to the root endpoint (/)
+- Each request has: { "jsonrpc": "2.0", "method": "...", "params": {...}, "id": 1 }
+- Required methods: initialize, initialized, tools/list, tools/call, ping
+- The X-API-Key header validates the user's identity (check for tools/list and tools/call)
 
 Generate clean, production-ready code that:
 - Uses Elysia framework for the HTTP server
-- ALWAYS validates X-API-Key header for authentication
+- Implements JSON-RPC 2.0 protocol for MCP
+- Validates X-API-Key header for authenticated methods
 - Includes comprehensive error handling
 - Has clear, descriptive tool names and descriptions
 - Returns MCP-formatted responses
 
-The code structure MUST include API key validation:
+The code structure MUST be:
 \`\`\`typescript
 import { Elysia, t } from "elysia";
 
+const PROTOCOL_VERSION = "2024-11-05";
+const SERVER_NAME = "API Name MCP Server";
+const SERVER_VERSION = "1.0.0";
+
+const TOOLS = [
+  { name: "tool_name", description: "Description", inputSchema: { type: "object", properties: {}, required: [] } }
+];
+
+async function handleToolCall(name: string, args: any): Promise<any> {
+  switch (name) {
+    case "tool_name":
+      // Implementation
+      return { content: [{ type: "text", text: "Result" }] };
+    default:
+      throw new Error(\`Unknown tool: \${name}\`);
+  }
+}
+
+const JSONRPC_ERRORS = {
+  PARSE_ERROR: { code: -32700, message: "Parse error" },
+  INVALID_REQUEST: { code: -32600, message: "Invalid Request" },
+  METHOD_NOT_FOUND: { code: -32601, message: "Method not found" },
+  INVALID_PARAMS: { code: -32602, message: "Invalid params" },
+  INTERNAL_ERROR: { code: -32603, message: "Internal error" },
+};
+
 const app = new Elysia()
-  // Health check (public)
-  .get("/", () => ({ status: "ok", timestamp: new Date().toISOString() }))
+  .get("/", () => ({ status: "ok", timestamp: new Date().toISOString(), service: SERVER_NAME }))
   
-  // List tools (requires API key)
+  .post("/", async ({ body, headers }) => {
+    const request = body as any;
+    const id = request.id ?? null;
+    
+    if (request.jsonrpc !== "2.0") {
+      return { jsonrpc: "2.0", error: JSONRPC_ERRORS.INVALID_REQUEST, id };
+    }
+    
+    try {
+      switch (request.method) {
+        case "initialize":
+          return { jsonrpc: "2.0", result: { protocolVersion: PROTOCOL_VERSION, capabilities: { tools: {} }, serverInfo: { name: SERVER_NAME, version: SERVER_VERSION } }, id };
+        case "initialized":
+        case "ping":
+          return { jsonrpc: "2.0", result: {}, id };
+        case "tools/list": {
+          if (!headers["x-api-key"]) return { jsonrpc: "2.0", error: { code: -32000, message: "Authentication required" }, id };
+          return { jsonrpc: "2.0", result: { tools: TOOLS }, id };
+        }
+        case "tools/call": {
+          if (!headers["x-api-key"]) return { jsonrpc: "2.0", error: { code: -32000, message: "Authentication required" }, id };
+          const { name, arguments: args } = request.params || {};
+          if (!name) return { jsonrpc: "2.0", error: JSONRPC_ERRORS.INVALID_PARAMS, id };
+          const result = await handleToolCall(name, args || {});
+          return { jsonrpc: "2.0", result, id };
+        }
+        default:
+          return { jsonrpc: "2.0", error: JSONRPC_ERRORS.METHOD_NOT_FOUND, id };
+      }
+    } catch (error: any) {
+      return { jsonrpc: "2.0", error: { code: -32603, message: error.message || "Internal error" }, id };
+    }
+  }, { body: t.Object({ jsonrpc: t.String(), method: t.String(), params: t.Optional(t.Any()), id: t.Optional(t.Union([t.String(), t.Number(), t.Null()])) }) })
+  
+  // REST fallback endpoints
   .get("/tools/list", async ({ headers }) => {
-    const apiKey = headers["x-api-key"];
-    if (!apiKey) {
-      return new Response(JSON.stringify({ error: "Missing API key" }), { status: 401 });
-    }
-    return { tools: [...] };
+    if (!headers["x-api-key"]) return new Response(JSON.stringify({ error: "Missing API key" }), { status: 401, headers: { "Content-Type": "application/json" } });
+    return { tools: TOOLS };
   })
-  
-  // Call tool (requires API key)
   .post("/tools/call", async ({ body, headers }) => {
-    const apiKey = headers["x-api-key"];
-    if (!apiKey) {
-      return new Response(JSON.stringify({ error: "Missing API key" }), { status: 401 });
-    }
-    // Tool implementation...
+    if (!headers["x-api-key"]) return new Response(JSON.stringify({ error: "Missing API key" }), { status: 401, headers: { "Content-Type": "application/json" } });
+    const { name, arguments: args } = body as any;
+    return await handleToolCall(name, args || {});
   }, { body: t.Object({ name: t.String(), arguments: t.Optional(t.Any()) }) });
 
 export const GET = app.handle;
@@ -110,7 +164,7 @@ export const POST = app.handle;
 
 Return the code as a JSON object with this structure:
 {
-  "code": "// Full TypeScript implementation with API key validation...",
+  "code": "// Full TypeScript implementation with JSON-RPC 2.0...",
   "tools": [
     {
       "name": "tool_name",
@@ -126,22 +180,26 @@ You will be given HTML/text from API documentation and need to:
 1. Extract ALL API endpoints, their HTTP methods, URL patterns, query parameters, headers, and request/response bodies
 2. Identify the authentication method (API key, Bearer token, OAuth, etc.) and where credentials should be sent (header, query param, etc.)
 3. Generate comprehensive MCP tool definitions for EACH endpoint
-4. Create a complete, working MCP server implementation
+4. Create a complete, working MCP server implementation using JSON-RPC 2.0 protocol
 
-CRITICAL AUTHENTICATION REQUIREMENT:
-All MCP servers MUST validate the X-API-Key header for MCP Hub authentication.
-- This is SEPARATE from any API keys needed for the underlying service
+CRITICAL: MCP Protocol Requirements
+The server MUST implement JSON-RPC 2.0 protocol for MCP compatibility with clients like Cursor, Claude Desktop, etc.
+- All MCP methods are called via POST to the root endpoint (/)
+- Each request has: { "jsonrpc": "2.0", "method": "...", "params": {...}, "id": 1 }
+- Required methods: initialize, initialized, tools/list, tools/call, ping
+
+AUTHENTICATION:
 - The X-API-Key header contains the user's MCP Hub API key
-- You must check headers["x-api-key"] and return 401 if missing
-- The underlying service's API key (if any) should be passed via headers["x-service-api-key"] or in the tool arguments
+- Check headers["x-api-key"] for tools/list and tools/call methods (not initialize)
+- The underlying service's API key (if any) should be passed in tool arguments
 
 IMPORTANT GUIDELINES:
-- Create a separate tool for each distinct API operation (e.g., "get_current_weather", "get_forecast", "search_locations")
-- Each tool MUST have proper input validation using Elysia's type system
+- Create a separate tool for each distinct API operation
+- Each tool MUST have proper input validation
 - Include all required AND optional parameters from the documentation
-- If the underlying API needs an API key, accept it as a parameter (e.g., "serviceApiKey" or "apiKey")
+- If the underlying API needs an API key, accept it as a parameter (e.g., "apiKey")
 - Format responses in a human-readable way for the AI assistant
-- Include proper error handling for common failure cases
+- Include proper error handling
 
 Generate clean, production-ready TypeScript code using Elysia framework.
 
@@ -149,76 +207,136 @@ The code structure MUST be:
 \`\`\`typescript
 import { Elysia, t } from "elysia";
 
+const PROTOCOL_VERSION = "2024-11-05";
+const SERVER_NAME = "API Name MCP Server";
+const SERVER_VERSION = "1.0.0";
+
+// Define your tools here
+const TOOLS = [
+  {
+    name: "tool_name",
+    description: "Tool description",
+    inputSchema: { type: "object", properties: { /* ... */ }, required: [] }
+  }
+];
+
+// Tool implementations
+async function handleToolCall(name: string, args: any): Promise<any> {
+  switch (name) {
+    case "tool_name": {
+      const response = await fetch(\`https://api.example.com/endpoint?param=\${args.param}&appid=\${args.apiKey}\`);
+      if (!response.ok) throw new Error(\`API error: \${response.statusText}\`);
+      const data = await response.json();
+      return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    }
+    default:
+      throw new Error(\`Unknown tool: \${name}\`);
+  }
+}
+
+// JSON-RPC error codes
+const JSONRPC_ERRORS = {
+  PARSE_ERROR: { code: -32700, message: "Parse error" },
+  INVALID_REQUEST: { code: -32600, message: "Invalid Request" },
+  METHOD_NOT_FOUND: { code: -32601, message: "Method not found" },
+  INVALID_PARAMS: { code: -32602, message: "Invalid params" },
+  INTERNAL_ERROR: { code: -32603, message: "Internal error" },
+};
+
 const app = new Elysia()
-  // Health check endpoint (public)
+  // Health check (GET /)
   .get("/", () => ({
     status: "ok",
-    server: "API Name MCP Server",
     timestamp: new Date().toISOString(),
+    service: SERVER_NAME,
   }))
   
-  // List available tools (requires MCP Hub API key)
-  .get("/tools/list", async ({ headers }) => {
-    const apiKey = headers["x-api-key"];
-    if (!apiKey) {
-      return new Response(JSON.stringify({ error: "Missing API key. Include X-API-Key header with your MCP Hub API key." }), { 
-        status: 401, headers: { "Content-Type": "application/json" } 
-      });
+  // MCP JSON-RPC endpoint (POST /)
+  .post("/", async ({ body, headers }) => {
+    const request = body as any;
+    const id = request.id ?? null;
+    
+    if (request.jsonrpc !== "2.0") {
+      return { jsonrpc: "2.0", error: JSONRPC_ERRORS.INVALID_REQUEST, id };
     }
     
-    return {
-      tools: [
-        {
-          name: "tool_name",
-          description: "Tool description",
-          inputSchema: { type: "object", properties: {...}, required: [...] }
-        }
-      ]
-    };
-  })
-  
-  // Execute a tool (requires MCP Hub API key)
-  .post("/tools/call", async ({ body, headers }) => {
-    const apiKey = headers["x-api-key"];
-    if (!apiKey) {
-      return new Response(JSON.stringify({ error: "Missing API key. Include X-API-Key header with your MCP Hub API key." }), { 
-        status: 401, headers: { "Content-Type": "application/json" } 
-      });
-    }
-    
-    const { name, arguments: args } = body as any;
-    
-    switch (name) {
-      case "tool_name": {
-        // Get service API key from args if needed
-        const serviceApiKey = args.apiKey || headers["x-service-api-key"];
-        
-        const response = await fetch(\`https://api.example.com/endpoint?param=\${args.param}&appid=\${serviceApiKey}\`);
-        if (!response.ok) {
-          return new Response(JSON.stringify({ error: \`API error: \${response.statusText}\` }), { 
-            status: response.status, headers: { "Content-Type": "application/json" } 
-          });
+    try {
+      switch (request.method) {
+        case "initialize":
+          return {
+            jsonrpc: "2.0",
+            result: {
+              protocolVersion: PROTOCOL_VERSION,
+              capabilities: { tools: {} },
+              serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
+            },
+            id,
+          };
+          
+        case "initialized":
+          return { jsonrpc: "2.0", result: {}, id };
+          
+        case "ping":
+          return { jsonrpc: "2.0", result: {}, id };
+          
+        case "tools/list": {
+          const apiKey = headers["x-api-key"];
+          if (!apiKey) {
+            return { jsonrpc: "2.0", error: { code: -32000, message: "Authentication required. Include X-API-Key header." }, id };
+          }
+          return { jsonrpc: "2.0", result: { tools: TOOLS }, id };
         }
         
-        const data = await response.json();
-        return {
-          content: [{
-            type: "text",
-            text: \`Formatted result: ...\`
-          }]
-        };
+        case "tools/call": {
+          const apiKey = headers["x-api-key"];
+          if (!apiKey) {
+            return { jsonrpc: "2.0", error: { code: -32000, message: "Authentication required. Include X-API-Key header." }, id };
+          }
+          const { name, arguments: args } = request.params || {};
+          if (!name) {
+            return { jsonrpc: "2.0", error: JSONRPC_ERRORS.INVALID_PARAMS, id };
+          }
+          const result = await handleToolCall(name, args || {});
+          return { jsonrpc: "2.0", result, id };
+        }
+        
+        default:
+          return { jsonrpc: "2.0", error: JSONRPC_ERRORS.METHOD_NOT_FOUND, id };
       }
-      
-      default:
-        return new Response(JSON.stringify({ error: \`Unknown tool: \${name}\` }), { 
-          status: 404, headers: { "Content-Type": "application/json" } 
-        });
+    } catch (error: any) {
+      return {
+        jsonrpc: "2.0",
+        error: { code: JSONRPC_ERRORS.INTERNAL_ERROR.code, message: error.message || "Internal error" },
+        id,
+      };
     }
   }, {
     body: t.Object({
-      name: t.String(),
-      arguments: t.Optional(t.Any()),
+      jsonrpc: t.String(),
+      method: t.String(),
+      params: t.Optional(t.Any()),
+      id: t.Optional(t.Union([t.String(), t.Number(), t.Null()])),
     }),
+  })
+  
+  // REST fallback endpoints for backward compatibility
+  .get("/tools/list", async ({ headers }) => {
+    const apiKey = headers["x-api-key"];
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: "Missing API key" }), { status: 401, headers: { "Content-Type": "application/json" } });
+    }
+    return { tools: TOOLS };
+  })
+  
+  .post("/tools/call", async ({ body, headers }) => {
+    const apiKey = headers["x-api-key"];
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: "Missing API key" }), { status: 401, headers: { "Content-Type": "application/json" } });
+    }
+    const { name, arguments: args } = body as any;
+    return await handleToolCall(name, args || {});
+  }, {
+    body: t.Object({ name: t.String(), arguments: t.Optional(t.Any()) }),
   });
 
 export const GET = app.handle;
@@ -242,7 +360,7 @@ Return the result as a JSON object with this EXACT structure:
       ]
     }
   ],
-  "code": "// Full TypeScript implementation with API key validation...",
+  "code": "// Full TypeScript implementation with JSON-RPC 2.0...",
   "tools": [
     {
       "name": "get_current_weather",
@@ -253,7 +371,7 @@ Return the result as a JSON object with this EXACT structure:
           "lat": { "type": "number", "description": "Latitude of the location" },
           "lon": { "type": "number", "description": "Longitude of the location" },
           "units": { "type": "string", "enum": ["standard", "metric", "imperial"], "description": "Units of measurement" },
-          "apiKey": { "type": "string", "description": "OpenWeather API key (if not set in headers)" }
+          "apiKey": { "type": "string", "description": "API key for the underlying service" }
         },
         "required": ["lat", "lon"]
       }
@@ -262,9 +380,10 @@ Return the result as a JSON object with this EXACT structure:
 }
 
 CRITICAL: 
-1. The "tools" array must contain ALL tools with complete JSON schemas for their parameters
-2. Each tool needs name, description, and schema with properties and required fields
-3. The generated code MUST validate X-API-Key header for MCP Hub authentication`,
+1. The server MUST implement JSON-RPC 2.0 protocol for MCP compatibility
+2. The "tools" array must contain ALL tools with complete JSON schemas
+3. Each tool needs name, description, and schema with properties and required fields
+4. Include both JSON-RPC and REST endpoints for maximum compatibility`,
 
   GENERATE_DOCS: `You are a technical documentation expert. Generate clear, comprehensive documentation for this MCP server.
 
