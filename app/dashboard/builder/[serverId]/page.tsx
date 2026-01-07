@@ -7,6 +7,7 @@ import { useUser } from "@clerk/nextjs";
 import { useParams } from "next/navigation";
 import { LoadingPage } from "@/components/loading";
 import { ShareDialog } from "@/components/sharing/share-dialog";
+import { ApiKeyDialog } from "@/components/api-key-dialog";
 import ReactMarkdown from "react-markdown";
 
 export const dynamic = 'force-dynamic';
@@ -24,6 +25,12 @@ export default function ServerDetailPage() {
   const [codeExpanded, setCodeExpanded] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [docsExpanded, setDocsExpanded] = useState(false);
+  const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
+
+  // Get user's Convex ID
+  const convexUser = useQuery(api.auth.getUserByClerkId, { 
+    clerkId: user?.id || "" 
+  }, { skip: !user?.id });
 
   // Get server details
   const server = useQuery(
@@ -39,6 +46,11 @@ export default function ServerDetailPage() {
     if (server) {
       setRateLimit(server.rateLimit || 0);
       setAllowedDomains(server.allowedDomains?.join("\n") || "");
+      
+      // Check if server requires external API key and hasn't been set up
+      if (server.requiresExternalApiKey && !showApiKeyDialog) {
+        setShowApiKeyDialog(true);
+      }
     }
   }, [server]);
 
@@ -630,6 +642,23 @@ export default function ServerDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* API Key Dialog */}
+      {server && convexUser && server.requiresExternalApiKey && (
+        <ApiKeyDialog
+          isOpen={showApiKeyDialog}
+          onClose={() => setShowApiKeyDialog(false)}
+          userId={convexUser._id}
+          serverId={server._id}
+          serviceName={server.externalApiService || ""}
+          serviceUrl={server.externalApiKeyUrl || undefined}
+          instructions={server.externalApiKeyInstructions || undefined}
+          onSuccess={() => {
+            // Refresh server data after key is saved
+            // Server query will automatically re-fetch
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -136,3 +136,86 @@ export const deleteServer = mutation({
     await ctx.db.delete(args.serverId);
   },
 });
+
+/**
+ * Store external API key for a server
+ */
+export const storeExternalApiKey = mutation({
+  args: {
+    userId: v.id("users"),
+    serverId: v.id("generatedServers"),
+    serviceName: v.string(),
+    serviceKey: v.string(),
+    keyName: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const existingKey = await ctx.db
+      .query("externalApiKeys")
+      .withIndex("by_user_and_service", (q) =>
+        q.eq("userId", args.userId).eq("serviceName", args.serviceName)
+      )
+      .first();
+
+    if (existingKey) {
+      // Update existing key
+      await ctx.db.patch(existingKey._id, {
+        serviceKey: args.serviceKey,
+        keyName: args.keyName,
+        lastUsed: Date.now(),
+      });
+      return existingKey._id;
+    } else {
+      // Create new key
+      const keyId = await ctx.db.insert("externalApiKeys", {
+        userId: args.userId,
+        serverId: args.serverId,
+        serviceName: args.serviceName,
+        serviceKey: args.serviceKey,
+        keyName: args.keyName,
+        createdAt: Date.now(),
+      });
+      return keyId;
+    }
+  },
+});
+
+/**
+ * Get external API key for a user and service
+ */
+export const getExternalApiKey = query({
+  args: {
+    userId: v.id("users"),
+    serviceName: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("externalApiKeys")
+      .withIndex("by_user_and_service", (q) =>
+        q.eq("userId", args.userId).eq("serviceName", args.serviceName)
+      )
+      .first();
+  },
+});
+
+/**
+ * Get all external API keys for a user
+ */
+export const listExternalApiKeys = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("externalApiKeys")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+  },
+});
+
+/**
+ * Delete external API key
+ */
+export const deleteExternalApiKey = mutation({
+  args: { keyId: v.id("externalApiKeys") },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.keyId);
+  },
+});

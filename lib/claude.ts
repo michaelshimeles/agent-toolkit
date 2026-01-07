@@ -31,14 +31,25 @@ export function parseClaudeJSON<T>(text: string): T {
     jsonStr = codeBlockMatch[1].trim();
   }
 
+  // Try direct JSON parsing first
   try {
     return JSON.parse(jsonStr);
   } catch (error) {
-    // Try to find JSON object or array in the response
-    const jsonMatch = jsonStr.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+    // Look for JSON object in the response (skip any preceding text)
+    const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       try {
-        return JSON.parse(jsonMatch[1]);
+        return JSON.parse(jsonMatch[0]);
+      } catch {
+        // Fall through to next attempt
+      }
+    }
+
+    // Try to find any JSON-like structure (object or array)
+    const anyJsonMatch = jsonStr.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+    if (anyJsonMatch) {
+      try {
+        return JSON.parse(anyJsonMatch[1]);
       } catch {
         // Fall through to error
       }
@@ -162,13 +173,16 @@ export const GET = app.handle;
 export const POST = app.handle;
 \`\`\`
 
-Return the code as a JSON object with this structure:
+CRITICAL: You MUST respond with ONLY a JSON object. No explanations, no introductory text, no markdown formatting.
+Your entire response must be a valid JSON object starting with { and ending with }.
+
+Return ONLY this JSON structure:
 {
   "code": "// Full TypeScript implementation with JSON-RPC 2.0...",
   "tools": [
     {
       "name": "tool_name",
-      "description": "Clear description",
+      "description": "Clear description", 
       "schema": { /* JSON schema */ }
     }
   ]
@@ -220,11 +234,23 @@ const TOOLS = [
   }
 ];
 
+// Helper function to get stored API keys
+async function getStoredApiKey(serviceName: string): Promise<string | null> {
+  // This will be replaced with actual key retrieval during deployment
+  const storedKeys = process.env.STORED_API_KEYS ? JSON.parse(process.env.STORED_API_KEYS) : {};
+  return storedKeys[serviceName] || null;
+}
+
 // Tool implementations
 async function handleToolCall(name: string, args: any): Promise<any> {
   switch (name) {
     case "tool_name": {
-      const response = await fetch(\`https://api.example.com/endpoint?param=\${args.param}&appid=\${args.apiKey}\`);
+      // Get API key from stored credentials or request parameter
+      const apiKey = args.apiKey || await getStoredApiKey("SERVICE_NAME");
+      if (!apiKey) {
+        throw new Error("API key required. Please configure your API key in MCP server settings.");
+      }
+      const response = await fetch(\`https://api.example.com/endpoint?param=\${args.param}&appid=\${apiKey}\`);
       if (!response.ok) throw new Error(\`API error: \${response.statusText}\`);
       const data = await response.json();
       return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
@@ -343,7 +369,10 @@ export const GET = app.handle;
 export const POST = app.handle;
 \`\`\`
 
-Return the result as a JSON object with this EXACT structure:
+CRITICAL: You MUST respond with ONLY a JSON object. No explanations, no introductory text, no markdown formatting.
+Your entire response must be a valid JSON object starting with { and ending with }.
+
+Return ONLY this JSON structure:
 {
   "name": "API Name (e.g., OpenWeather Current Weather API)",
   "description": "Clear description of what this API does",
@@ -370,20 +399,39 @@ Return the result as a JSON object with this EXACT structure:
         "properties": {
           "lat": { "type": "number", "description": "Latitude of the location" },
           "lon": { "type": "number", "description": "Longitude of the location" },
-          "units": { "type": "string", "enum": ["standard", "metric", "imperial"], "description": "Units of measurement" },
-          "apiKey": { "type": "string", "description": "API key for the underlying service" }
+          "units": { "type": "string", "enum": ["standard", "metric", "imperial"], "description": "Units of measurement" }
         },
         "required": ["lat", "lon"]
       }
     }
-  ]
+  ],
+  "requiresExternalApiKey": false,
+  "externalApiService": null,
+  "externalApiKeyUrl": null,
+  "externalApiKeyInstructions": null
 }
 
 CRITICAL: 
 1. The server MUST implement JSON-RPC 2.0 protocol for MCP compatibility
 2. The "tools" array must contain ALL tools with complete JSON schemas
 3. Each tool needs name, description, and schema with properties and required fields
-4. Include both JSON-RPC and REST endpoints for maximum compatibility`,
+4. Include both JSON-RPC and REST endpoints for maximum compatibility
+
+EXTERNAL API KEY REQUIREMENT:
+If this API requires external API keys (like OpenWeatherMap, Twitter API, etc.), you MUST:
+1. Set "requiresExternalApiKey": true in the response
+2. Specify "externalApiService" (e.g., "OpenWeatherMap", "Twitter API")
+3. Provide "externalApiKeyUrl" (where users can get the key)
+4. Include "externalApiKeyInstructions" with clear setup steps
+5. Make the apiKey parameter OPTIONAL in the tool schema (it will be auto-populated from stored credentials)
+
+Example for weather APIs:
+{
+  "requiresExternalApiKey": true,
+  "externalApiService": "OpenWeatherMap",
+  "externalApiKeyUrl": "https://openweathermap.org/api",
+  "externalApiKeyInstructions": "1. Sign up at https://openweathermap.org/api\n2. Get your free API key\n3. The key will be automatically stored and used"
+}`,
 
   GENERATE_DOCS: `You are a technical documentation expert. Generate clear, comprehensive documentation for this MCP server.
 

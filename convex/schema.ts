@@ -203,4 +203,18 @@ export default defineSchema({
     .index("by_server", ["serverId"])
     .index("by_user", ["userId"])
     .index("by_parent", ["parentCommentId"]),
+
+  // External API Keys for generated servers
+  externalApiKeys: defineTable({
+    userId: v.id("users"),
+    serverId: v.id("generatedServers"),
+    serviceName: v.string(), // "OpenWeatherMap", "Twitter API", etc.
+    serviceKey: v.string(), // Encrypted API key for the external service
+    keyName: v.string(), // User-friendly name for the key
+    createdAt: v.number(),
+    lastUsed: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_server", ["serverId"])
+    .index("by_user_and_service", ["userId", "serviceName"]),
 });

@@ -455,6 +455,26 @@ describe("Claude API Integration", () => {
       const result = parseClaudeJSON<{ code: string }>(json);
       expect(result.code).toContain("hello");
     });
+
+    it("should handle responses with explanatory text before JSON", () => {
+      const response = `Looking at the OpenAPI spec, I can see this is for Daytona.
+
+{"code": "const x = 1;", "tools": []}`;
+      
+      const result = parseClaudeJSON<{ code: string; tools: any[] }>(response);
+      expect(result.code).toBe("const x = 1;");
+      expect(result.tools).toEqual([]);
+    });
+
+    it("should handle responses starting with explanatory text and then JSON object", () => {
+      const response = `Looking at the OpenAPI spec, this is an interesting API for managing containers.
+
+{"name": "Container API", "description": "Manage containers", "endpoints": []}`;
+      
+      const result = parseClaudeJSON<{ name: string; description: string; endpoints: any[] }>(response);
+      expect(result.name).toBe("Container API");
+      expect(result.description).toBe("Manage containers");
+    });
   });
 
   describe("Streaming Responses", () => {

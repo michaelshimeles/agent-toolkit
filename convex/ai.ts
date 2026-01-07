@@ -246,7 +246,7 @@ export const deployServer = action({
 
     try {
       // Deploy to Vercel (placeholder - would use Vercel API)
-      const deploymentUrl = await deployToVercel(server);
+      const deploymentUrl = await deployToVercel(ctx, server);
 
       // Update status to deployed
       await ctx.runMutation(api.ai.updateServerStatus, {
@@ -679,12 +679,30 @@ async function analyzeGitHubRepo(
   };
 }
 
-async function deployToVercel(server: any): Promise<string> {
+async function deployToVercel(ctx: any, server: any): Promise<string> {
+  // Get stored API keys for this server if it requires external API keys
+  let envVars: Record<string, string> = {};
+  
+  if (server.requiresExternalApiKey && server.externalApiService) {
+    // Get the stored API key for this service
+    const storedKey = await ctx.runQuery(api.builder.getExternalApiKey, {
+      userId: server.userId,
+      serviceName: server.externalApiService,
+    });
+    
+    if (storedKey) {
+      // Store API keys as JSON string for deployment
+      envVars.STORED_API_KEYS = JSON.stringify({
+        [server.externalApiService]: storedKey.serviceKey,
+      });
+    }
+  }
+
   // Use real Vercel API to deploy
   const result = await deployMCPServer({
     serverName: server.slug,
     serverCode: server.code,
-    env: {},
+    env: envVars,
   });
 
   // Check health
