@@ -284,7 +284,7 @@ export default function ServerDetailPage() {
                 </div>
                 <div className="relative">
                   <div 
-                    className={`prose prose-sm max-w-none dark:prose-invert prose-headings:font-semibold prose-headings:mt-6 prose-headings:mb-3 prose-h1:text-xl prose-h2:text-lg prose-h3:text-base prose-p:my-3 prose-p:leading-relaxed prose-ul:my-4 prose-ol:my-4 prose-li:my-2 prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:before:content-none prose-code:after:content-none prose-pre:bg-zinc-900 prose-pre:text-zinc-100 prose-pre:my-4 transition-all duration-300 ${
+                    className={`markdown-docs transition-all duration-300 ${
                       docsExpanded ? 'max-h-none' : 'max-h-[400px] overflow-hidden'
                     }`}
                   >
