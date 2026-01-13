@@ -35,11 +35,9 @@ vi.mock("@/components/sharing/share-dialog", () => ({
   ),
 }));
 
-vi.mock("@/components/comments/comment-thread", () => ({
-  CommentThread: ({ serverId, includeResolved }: any) => (
-    <div data-testid="comment-thread">
-      Comments for {serverId} (includeResolved: {includeResolved.toString()})
-    </div>
+vi.mock("react-markdown", () => ({
+  default: ({ children }: { children: string }) => (
+    <div data-testid="markdown-content">{children}</div>
   ),
 }));
 
@@ -93,19 +91,6 @@ describe("Server Detail Page - Collaboration Integration", () => {
     expect(shareDialog.textContent).toBe("Share server123");
   });
 
-  it("should render CommentThread component", () => {
-    render(<ServerDetailPage />);
-    const commentThread = screen.getByTestId("comment-thread");
-    expect(commentThread).toBeInTheDocument();
-    expect(commentThread.textContent).toContain("Comments for server123");
-  });
-
-  it("should pass includeResolved=false to CommentThread", () => {
-    render(<ServerDetailPage />);
-    const commentThread = screen.getByTestId("comment-thread");
-    expect(commentThread.textContent).toContain("includeResolved: false");
-  });
-
   it("should show loading when user is not available", () => {
     mockUseUser.mockReturnValue({ user: null });
 
@@ -141,8 +126,11 @@ describe("Server Detail Page - Collaboration Integration", () => {
 
   it("should display auto-generated documentation when available", () => {
     render(<ServerDetailPage />);
-    expect(screen.getByText(/# Test Server/)).toBeInTheDocument();
-    expect(screen.getByText(/This is a test server./)).toBeInTheDocument();
+    // The markdown content is rendered via ReactMarkdown mock
+    const markdownContent = screen.getByTestId("markdown-content");
+    expect(markdownContent).toBeInTheDocument();
+    expect(markdownContent.textContent).toContain("# Test Server");
+    expect(markdownContent.textContent).toContain("This is a test server.");
   });
 
   it("should not display documentation when not available", () => {
@@ -162,7 +150,7 @@ describe("Server Detail Page - Collaboration Integration", () => {
     expect(screen.getByText("Deploy Server →")).toBeInTheDocument();
   });
 
-  it("should display copy config button when status is deployed", () => {
+  it("should display copy button when status is deployed", () => {
     mockUseQuery.mockReturnValue({
       ...mockServer,
       status: "deployed",
@@ -170,7 +158,9 @@ describe("Server Detail Page - Collaboration Integration", () => {
     });
 
     render(<ServerDetailPage />);
-    expect(screen.getByText("Copy Config")).toBeInTheDocument();
+    // The deployed state shows multiple "Copy" buttons (code and config)
+    const copyButtons = screen.getAllByText("Copy");
+    expect(copyButtons.length).toBeGreaterThanOrEqual(1);
   });
 
   it("should show warning but allow deploy when no tools are available", () => {

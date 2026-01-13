@@ -292,3 +292,46 @@ export const listSharedWithUser = query({
     return servers.filter((s) => s !== null);
   },
 });
+
+/**
+ * Get server by share link
+ */
+export const getSharedServer = query({
+  args: {
+    serverId: v.id("generatedServers"),
+    shareId: v.id("serverShares"),
+  },
+  handler: async (ctx, args) => {
+    // Verify share exists
+    const share = await ctx.db.get(args.shareId);
+    if (!share || share.serverId !== args.serverId) {
+      return null;
+    }
+
+    // Check if share has expired
+    if (share.expiresAt && share.expiresAt < Date.now()) {
+      return null;
+    }
+
+    // Get server
+    const server = await ctx.db.get(args.serverId);
+    if (!server) {
+      return null;
+    }
+
+    // Get owner info
+    const owner = await ctx.db.get(server.userId);
+
+    return {
+      server,
+      share,
+      owner: owner
+        ? {
+            name: owner.name,
+            email: owner.email,
+            imageUrl: owner.imageUrl,
+          }
+        : null,
+    };
+  },
+});

@@ -28,9 +28,10 @@ export default function ServerDetailPage() {
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
 
   // Get user's Convex ID
-  const convexUser = useQuery(api.auth.getUserByClerkId, { 
-    clerkId: user?.id || "" 
-  }, { skip: !user?.id });
+  const convexUser = useQuery(
+    api.auth.getUserByClerkId,
+    user?.id ? { clerkId: user.id } : "skip"
+  );
 
   // Get server details
   const server = useQuery(
@@ -46,11 +47,6 @@ export default function ServerDetailPage() {
     if (server) {
       setRateLimit(server.rateLimit || 0);
       setAllowedDomains(server.allowedDomains?.join("\n") || "");
-      
-      // Check if server requires external API key and hasn't been set up
-      if (server.requiresExternalApiKey && !showApiKeyDialog) {
-        setShowApiKeyDialog(true);
-      }
     }
   }, [server]);
 
@@ -643,22 +639,20 @@ export default function ServerDetailPage() {
         </div>
       </div>
 
-      {/* API Key Dialog */}
-      {server && convexUser && server.requiresExternalApiKey && (
+      {/* API Key Dialog - Temporarily disabled until schema is updated */}
+      {/* {server && convexUser && (
         <ApiKeyDialog
           isOpen={showApiKeyDialog}
           onClose={() => setShowApiKeyDialog(false)}
           userId={convexUser._id}
           serverId={server._id}
-          serviceName={server.externalApiService || ""}
-          serviceUrl={server.externalApiKeyUrl || undefined}
-          instructions={server.externalApiKeyInstructions || undefined}
+          serviceName=""
           onSuccess={() => {
             // Refresh server data after key is saved
             // Server query will automatically re-fetch
           }}
         />
-      )}
+      )} */}
     </div>
   );
 }

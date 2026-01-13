@@ -145,15 +145,16 @@ describe("Usage Logging and Analytics", () => {
     });
 
     it("should accumulate requests per period", () => {
+      // Use UTC dates to avoid timezone issues
       const logs = [
-        { _creationTime: new Date("2024-01-10").getTime() },
-        { _creationTime: new Date("2024-01-15").getTime() },
-        { _creationTime: new Date("2024-02-01").getTime() },
+        { _creationTime: Date.UTC(2024, 0, 10) }, // January 10, 2024
+        { _creationTime: Date.UTC(2024, 0, 15) }, // January 15, 2024
+        { _creationTime: Date.UTC(2024, 1, 15) }, // February 15, 2024
       ];
 
       const countByPeriod = logs.reduce((acc, log) => {
         const date = new Date(log._creationTime);
-        const period = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+        const period = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
         acc[period] = (acc[period] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);

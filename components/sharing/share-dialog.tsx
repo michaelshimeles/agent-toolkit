@@ -17,12 +17,12 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  RadixSelect,
+  RadixSelectContent,
+  RadixSelectItem,
+  RadixSelectTrigger,
+  RadixSelectValue,
+} from "@/components/ui/radix-select";
 import { Share2, Globe, Users, User, X, Check, Copy } from "lucide-react";
 import { generateShareLink } from "@/lib/collaboration-utils";
 
@@ -33,7 +33,7 @@ interface ShareDialogProps {
 export function ShareDialog({ serverId }: ShareDialogProps) {
   const { user, isLoaded } = useUser();
   const [isOpen, setIsOpen] = useState(false);
-  const [shareType, setShareType] = useState<"public" | "user" | "workspace">("user");
+  const [shareType, setShareType] = useState<"public" | "user" | "workspace">("workspace");
   const [userEmail, setUserEmail] = useState("");
   const [selectedWorkspace, setSelectedWorkspace] = useState("");
   const [permission, setPermission] = useState<"view" | "edit" | "admin">("view");
@@ -76,28 +76,8 @@ export function ShareDialog({ serverId }: ShareDialogProps) {
   const makePublic = useMutation(api.sharing.makePublic);
   const removeShare = useMutation(api.sharing.removeShare);
 
-  // #region agent log
-  useEffect(() => {
-    fetch('http://127.0.0.1:7243/ingest/951a582d-7d5c-416d-96f8-66f5dcc70ccb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'share-dialog.tsx:mount',message:'ShareDialog mounted/updated',data:{serverId,isLoaded,hasUser:!!user,convexUser:convexUser?._id||null,workspacesCount:workspaces?.length,sharesCount:shares?.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C,E'})}).catch(()=>{});
-  }, [serverId, isLoaded, user, convexUser, workspaces, shares]);
-  // #endregion
-
-  // #region agent log
-  const handleOpenChange = (open: boolean) => {
-    const stack = new Error().stack;
-    fetch('http://127.0.0.1:7243/ingest/951a582d-7d5c-416d-96f8-66f5dcc70ccb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'share-dialog.tsx:handleOpenChange',message:'Dialog open state changing',data:{from:isOpen,to:open,stack:stack?.split('\n').slice(1,5).join(' | ')},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
-    setIsOpen(open);
-  };
-  // #endregion
-
   const handleShare = async () => {
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/951a582d-7d5c-416d-96f8-66f5dcc70ccb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'share-dialog.tsx:handleShare:entry',message:'handleShare called',data:{convexUserId:convexUser?._id||null,shareType,selectedWorkspace,permission,userEmail},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
     if (!convexUser) {
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/951a582d-7d5c-416d-96f8-66f5dcc70ccb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'share-dialog.tsx:handleShare:early-return',message:'Early return - convexUser is null',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
       return;
     }
 
@@ -113,9 +93,6 @@ export function ShareDialog({ serverId }: ShareDialogProps) {
           permission: permission === "admin" ? "edit" : permission,
           sharedBy: convexUser._id,
         });
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/951a582d-7d5c-416d-96f8-66f5dcc70ccb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'share-dialog.tsx:handleShare:public',message:'makePublic completed',data:{shareId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
       } else if (shareType === "workspace" && selectedWorkspace) {
         shareId = await shareWithWorkspace({
           serverId: serverId as any,
@@ -123,9 +100,6 @@ export function ShareDialog({ serverId }: ShareDialogProps) {
           permission,
           sharedBy: convexUser._id,
         });
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/951a582d-7d5c-416d-96f8-66f5dcc70ccb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'share-dialog.tsx:handleShare:workspace',message:'shareWithWorkspace completed',data:{shareId,workspaceId:selectedWorkspace},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
       } else if (shareType === "user" && userEmail) {
         // In a real app, you'd look up the user by email first
         // For now, we'll skip this as it requires user lookup logic
@@ -144,9 +118,6 @@ export function ShareDialog({ serverId }: ShareDialogProps) {
       setPermission("view");
       setExpiresInDays(undefined);
     } catch (error) {
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/951a582d-7d5c-416d-96f8-66f5dcc70ccb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'share-dialog.tsx:handleShare:error',message:'Share mutation failed',data:{error:String(error)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
       console.error("Failed to share:", error);
     }
   };
@@ -166,7 +137,7 @@ export function ShareDialog({ serverId }: ShareDialogProps) {
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button variant="outline">
           <Share2 className="mr-2 h-4 w-4" />
@@ -188,7 +159,11 @@ export function ShareDialog({ serverId }: ShareDialogProps) {
               <Button
                 type="button"
                 variant={shareType === "user" ? "default" : "outline"}
-                onClick={() => setShareType("user")}
+                onClick={() => {
+                  setShareType("user");
+                  setUserEmail("");
+                  setSelectedWorkspace("");
+                }}
                 className="h-auto py-3"
               >
                 <User className="h-4 w-4 mr-2" />
@@ -197,7 +172,11 @@ export function ShareDialog({ serverId }: ShareDialogProps) {
               <Button
                 type="button"
                 variant={shareType === "workspace" ? "default" : "outline"}
-                onClick={() => setShareType("workspace")}
+                onClick={() => {
+                  setShareType("workspace");
+                  setUserEmail("");
+                  setSelectedWorkspace("");
+                }}
                 className="h-auto py-3"
               >
                 <Users className="h-4 w-4 mr-2" />
@@ -206,7 +185,11 @@ export function ShareDialog({ serverId }: ShareDialogProps) {
               <Button
                 type="button"
                 variant={shareType === "public" ? "default" : "outline"}
-                onClick={() => setShareType("public")}
+                onClick={() => {
+                  setShareType("public");
+                  setUserEmail("");
+                  setSelectedWorkspace("");
+                }}
                 className="h-auto py-3"
               >
                 <Globe className="h-4 w-4 mr-2" />
@@ -231,72 +214,67 @@ export function ShareDialog({ serverId }: ShareDialogProps) {
             {shareType === "workspace" && (
               <div className="space-y-2">
                 <Label>Workspace</Label>
-                <Select value={selectedWorkspace} onValueChange={(v) => {
-                  // #region agent log
-                  fetch('http://127.0.0.1:7243/ingest/951a582d-7d5c-416d-96f8-66f5dcc70ccb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'share-dialog.tsx:workspace-select',message:'Workspace select changed',data:{newValue:v,oldValue:selectedWorkspace,availableWorkspaces:workspaces?.length||0},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,E'})}).catch(()=>{});
-                  // #endregion
-                  setSelectedWorkspace(v);
-                }}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select workspace" />
-                  </SelectTrigger>
-                  <SelectContent>
+                <RadixSelect value={selectedWorkspace} onValueChange={setSelectedWorkspace}>
+                  <RadixSelectTrigger>
+                    <RadixSelectValue placeholder="Select workspace" />
+                  </RadixSelectTrigger>
+                  <RadixSelectContent>
                     {workspaces?.map((workspace) => (
-                      <SelectItem key={workspace._id} value={workspace._id}>
+                      <RadixSelectItem key={workspace._id} value={workspace._id}>
                         {workspace.name}
-                      </SelectItem>
+                      </RadixSelectItem>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </RadixSelectContent>
+                </RadixSelect>
               </div>
             )}
 
             {/* Permission Level */}
             <div className="space-y-2">
               <Label>Permission Level</Label>
-              <Select value={permission} onValueChange={(v: any) => {
-                // #region agent log
-                fetch('http://127.0.0.1:7243/ingest/951a582d-7d5c-416d-96f8-66f5dcc70ccb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'share-dialog.tsx:permission-select',message:'Permission select changed',data:{newValue:v,oldValue:permission},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B'})}).catch(()=>{});
-                // #endregion
-                setPermission(v);
-              }}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="view">View Only</SelectItem>
-                  <SelectItem value="edit">Can Edit</SelectItem>
+              <RadixSelect value={permission} onValueChange={(v: any) => setPermission(v)}>
+                <RadixSelectTrigger>
+                  <RadixSelectValue />
+                </RadixSelectTrigger>
+                <RadixSelectContent>
+                  <RadixSelectItem value="view">View Only</RadixSelectItem>
+                  <RadixSelectItem value="edit">Can Edit</RadixSelectItem>
                   {shareType !== "public" && (
-                    <SelectItem value="admin">Full Access</SelectItem>
+                    <RadixSelectItem value="admin">Full Access</RadixSelectItem>
                   )}
-                </SelectContent>
-              </Select>
+                </RadixSelectContent>
+              </RadixSelect>
             </div>
 
             {/* Expiration (optional, for user shares) */}
             {shareType === "user" && (
               <div className="space-y-2">
                 <Label>Expires in (Optional)</Label>
-                <Select
+                <RadixSelect
                   value={expiresInDays?.toString() || "never"}
                   onValueChange={(v) =>
                     setExpiresInDays(v === "never" ? undefined : parseInt(v))
                   }
                 >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="never">Never</SelectItem>
-                    <SelectItem value="1">1 day</SelectItem>
-                    <SelectItem value="7">7 days</SelectItem>
-                    <SelectItem value="30">30 days</SelectItem>
-                  </SelectContent>
-                </Select>
+                  <RadixSelectTrigger>
+                    <RadixSelectValue />
+                  </RadixSelectTrigger>
+                  <RadixSelectContent>
+                    <RadixSelectItem value="never">Never</RadixSelectItem>
+                    <RadixSelectItem value="1">1 day</RadixSelectItem>
+                    <RadixSelectItem value="7">7 days</RadixSelectItem>
+                    <RadixSelectItem value="30">30 days</RadixSelectItem>
+                  </RadixSelectContent>
+                </RadixSelect>
               </div>
             )}
 
-            <Button onClick={handleShare} className="w-full">
+            <Button
+              type="button"
+              onClick={handleShare}
+              className="w-full"
+              disabled={!convexUser || (shareType === "workspace" && !selectedWorkspace) || (shareType === "user" && !userEmail)}
+            >
               Share
             </Button>
 
@@ -306,7 +284,12 @@ export function ShareDialog({ serverId }: ShareDialogProps) {
                 <Label>Share Link</Label>
                 <div className="flex gap-2">
                   <Input value={shareLink} readOnly />
-                  <Button variant="outline" onClick={handleCopyLink}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleCopyLink}
+                    disabled={!shareLink}
+                  >
                     {copied ? (
                       <Check className="h-4 w-4" />
                     ) : (
@@ -350,6 +333,7 @@ export function ShareDialog({ serverId }: ShareDialogProps) {
                       </div>
                     </div>
                     <Button
+                      type="button"
                       variant="ghost"
                       size="icon"
                       onClick={() => handleRemoveShare(share._id)}
@@ -364,7 +348,11 @@ export function ShareDialog({ serverId }: ShareDialogProps) {
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => setIsOpen(false)}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setIsOpen(false)}
+          >
             Done
           </Button>
         </DialogFooter>

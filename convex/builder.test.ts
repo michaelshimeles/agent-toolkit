@@ -2,7 +2,7 @@
  * Tests for External API Key Management Logic
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 
 describe("External API Key Management", () => {
   describe("External API Key Data Model", () => {
