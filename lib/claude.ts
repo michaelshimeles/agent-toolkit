@@ -20,6 +20,96 @@ export function getClaudeClient(): Anthropic {
 }
 
 /**
+ * Validation result type
+ */
+interface ValidationResult {
+  valid: boolean;
+  errors: string[];
+}
+
+/**
+ * Validate MCP code generation response structure
+ */
+function validateMCPCodeResponse(data: any): ValidationResult {
+  const errors: string[] = [];
+
+  if (!data || typeof data !== "object") {
+    return { valid: false, errors: ["Response is not an object"] };
+  }
+
+  if (typeof data.code !== "string") {
+    errors.push("Missing or invalid 'code' field (expected string)");
+  } else if (data.code.length < 100) {
+    errors.push("Generated code is too short (less than 100 characters)");
+  }
+
+  if (data.tools !== undefined) {
+    if (!Array.isArray(data.tools)) {
+      errors.push("'tools' field is not an array");
+    } else {
+      data.tools.forEach((tool: any, index: number) => {
+        if (typeof tool.name !== "string" || !tool.name) {
+          errors.push(`Tool at index ${index} is missing 'name'`);
+        }
+        if (typeof tool.description !== "string") {
+          errors.push(`Tool at index ${index} is missing 'description'`);
+        }
+      });
+    }
+  }
+
+  return { valid: errors.length === 0, errors };
+}
+
+/**
+ * Validate MCP docs generation response structure
+ */
+function validateMCPDocsResponse(data: any): ValidationResult {
+  const errors: string[] = [];
+
+  if (!data || typeof data !== "object") {
+    return { valid: false, errors: ["Response is not an object"] };
+  }
+
+  if (typeof data.name !== "string" || !data.name) {
+    errors.push("Missing or invalid 'name' field");
+  }
+
+  if (typeof data.code !== "string") {
+    errors.push("Missing or invalid 'code' field");
+  } else if (data.code.length < 100) {
+    errors.push("Generated code is too short");
+  }
+
+  if (!Array.isArray(data.tools)) {
+    errors.push("'tools' field is not an array");
+  }
+
+  return { valid: errors.length === 0, errors };
+}
+
+/**
+ * Validate GitHub repo analysis response structure
+ */
+function validateGitHubAnalysisResponse(data: any): ValidationResult {
+  const errors: string[] = [];
+
+  if (!data || typeof data !== "object") {
+    return { valid: false, errors: ["Response is not an object"] };
+  }
+
+  if (typeof data.name !== "string") {
+    errors.push("Missing 'name' field");
+  }
+
+  if (!Array.isArray(data.endpoints)) {
+    errors.push("'endpoints' field is not an array");
+  }
+
+  return { valid: errors.length === 0, errors };
+}
+
+/**
  * Parse JSON from Claude response, handling markdown code blocks
  */
 export function parseClaudeJSON<T>(text: string): T {
@@ -60,6 +150,27 @@ export function parseClaudeJSON<T>(text: string): T {
       `Response started with: ${text.slice(0, 100)}...`
     );
   }
+}
+
+/**
+ * Parse and validate Claude JSON response with schema validation
+ */
+function parseAndValidateClaudeJSON<T>(
+  text: string,
+  validator: (data: any) => ValidationResult,
+  context: string
+): T {
+  const parsed = parseClaudeJSON<T>(text);
+  const validation = validator(parsed);
+
+  if (!validation.valid) {
+    console.error(`Validation errors for ${context}:`, validation.errors);
+    throw new Error(
+      `Invalid Claude response for ${context}: ${validation.errors.join(", ")}`
+    );
+  }
+
+  return parsed;
 }
 
 /**
@@ -559,8 +670,12 @@ export async function generateMCPFromOpenAPI(spec: any): Promise<{
     throw new Error("No text response from Claude");
   }
 
-  // Parse the JSON response (handles markdown code blocks)
-  const result = parseClaudeJSON<{ code: string; tools?: Array<{ name: string; description: string; schema: any }> }>(textContent.text);
+  // Parse and validate the JSON response
+  const result = parseAndValidateClaudeJSON<{ code: string; tools?: Array<{ name: string; description: string; schema: any }> }>(
+    textContent.text,
+    validateMCPCodeResponse,
+    "OpenAPI code generation"
+  );
   return {
     code: result.code,
     tools: result.tools || [],
@@ -619,13 +734,13 @@ export async function generateMCPFromDocs(docsHtml: string, url: string): Promis
     throw new Error("No text response from Claude");
   }
 
-  return parseClaudeJSON<{
+  return parseAndValidateClaudeJSON<{
     name: string;
     description: string;
     endpoints: any[];
     code: string;
     tools: any[];
-  }>(textContent.text);
+  }>(textContent.text, validateMCPDocsResponse, "documentation code generation");
 }
 
 /**
@@ -683,12 +798,12 @@ export async function analyzeGitHubRepo(files: Array<{ path: string; content: st
     throw new Error("No text response from Claude");
   }
 
-  return parseClaudeJSON<{
+  return parseAndValidateClaudeJSON<{
     name: string;
     baseUrl: string;
     authMethod: string;
     endpoints: any[];
-  }>(textContent.text);
+  }>(textContent.text, validateGitHubAnalysisResponse, "GitHub repository analysis");
 }
 
 /**

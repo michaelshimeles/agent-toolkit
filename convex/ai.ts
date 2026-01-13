@@ -16,6 +16,89 @@ import {
   checkMCPServerHealth,
 } from "../lib/vercel";
 
+// ============================================================================
+// Utility Functions
+// ============================================================================
+
+const DEFAULT_TIMEOUT_MS = 30000;
+const GITHUB_TIMEOUT_MS = 15000;
+
+/**
+ * Fetch with timeout - wraps fetch with AbortSignal timeout
+ */
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit = {},
+  timeoutMs: number = DEFAULT_TIMEOUT_MS
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    return response;
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`Request timeout after ${timeoutMs}ms: ${url}`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+/**
+ * Generate URL-safe slug from name
+ */
+function generateSlug(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  if (!slug) {
+    return `server-${Date.now()}`;
+  }
+
+  return slug;
+}
+
+/**
+ * Validate URL format
+ */
+function isValidUrl(url: string): boolean {
+  try {
+    new URL(url);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get GitHub API headers with optional authentication
+ */
+function getGitHubHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Accept": "application/vnd.github.v3+json",
+    "User-Agent": "MCP-Hub-Builder",
+  };
+
+  const githubToken = process.env.GITHUB_TOKEN;
+  if (githubToken) {
+    headers["Authorization"] = `Bearer ${githubToken}`;
+  }
+
+  return headers;
+}
+
+// ============================================================================
+// Actions
+// ============================================================================
+
 // Action to generate MCP server from OpenAPI spec
 export const generateFromOpenAPI = action({
   args: {
@@ -23,8 +106,13 @@ export const generateFromOpenAPI = action({
     userId: v.id("users"),
   },
   handler: async (ctx, { specUrl, userId }): Promise<any> => {
-    // 1. Fetch and parse OpenAPI spec
-    const specResponse = await fetch(specUrl);
+    // Validate URL
+    if (!isValidUrl(specUrl)) {
+      throw new Error(`Invalid URL: ${specUrl}`);
+    }
+
+    // 1. Fetch and parse OpenAPI spec with timeout
+    const specResponse = await fetchWithTimeout(specUrl);
     if (!specResponse.ok) {
       throw new Error(`Failed to fetch OpenAPI spec: ${specResponse.statusText}`);
     }
@@ -34,7 +122,7 @@ export const generateFromOpenAPI = action({
     // 2. Extract basic info
     const name = spec.info?.title || "Generated API Server";
     const description = spec.info?.description || "MCP server generated from OpenAPI spec";
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const slug = generateSlug(name);
 
     // 3. Parse endpoints and schemas
     const endpoints = parseOpenAPIEndpoints(spec);
@@ -72,8 +160,13 @@ export const generateFromDocsUrl = action({
     userId: v.id("users"),
   },
   handler: async (ctx, { docsUrl, userId }): Promise<any> => {
-    // 1. Fetch documentation page
-    const docsResponse = await fetch(docsUrl);
+    // Validate URL
+    if (!isValidUrl(docsUrl)) {
+      throw new Error(`Invalid URL: ${docsUrl}`);
+    }
+
+    // 1. Fetch documentation page with timeout
+    const docsResponse = await fetchWithTimeout(docsUrl);
     if (!docsResponse.ok) {
       throw new Error(`Failed to fetch documentation: ${docsResponse.statusText}`);
     }
@@ -88,7 +181,7 @@ export const generateFromDocsUrl = action({
     const tools = analysis.tools;
 
     // 4. Store draft
-    const slug = analysis.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const slug = generateSlug(analysis.name);
     const serverId: any = await ctx.runMutation(api.ai.createDraftServer, {
       userId,
       slug,
@@ -114,16 +207,26 @@ export const generateFromGitHubRepo = action({
     // 1. Parse GitHub URL
     const match = repoUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
     if (!match) {
-      throw new Error("Invalid GitHub URL");
+      throw new Error("Invalid GitHub URL. Expected format: https://github.com/owner/repo");
     }
 
     const [, owner, repo] = match;
     const repoName = repo.replace(/\.git$/, "");
 
-    // 2. Fetch repository info
-    const repoInfo = await fetch(`https://api.github.com/repos/${owner}/${repoName}`);
+    // 2. Fetch repository info with timeout and auth headers
+    const repoInfo = await fetchWithTimeout(
+      `https://api.github.com/repos/${owner}/${repoName}`,
+      { headers: getGitHubHeaders() },
+      GITHUB_TIMEOUT_MS
+    );
     if (!repoInfo.ok) {
-      throw new Error("Repository not found");
+      if (repoInfo.status === 404) {
+        throw new Error(`Repository not found: ${owner}/${repoName}`);
+      }
+      if (repoInfo.status === 403) {
+        throw new Error("GitHub API rate limit exceeded. Please try again later.");
+      }
+      throw new Error(`Failed to fetch repository: ${repoInfo.statusText}`);
     }
 
     const repoData = await repoInfo.json();
@@ -142,7 +245,7 @@ export const generateFromGitHubRepo = action({
     });
 
     // 5. Store draft
-    const slug = repoName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const slug = generateSlug(repoName);
     const serverId: any = await ctx.runMutation(api.ai.createDraftServer, {
       userId,
       slug,
@@ -246,7 +349,7 @@ export const deployServer = action({
     });
 
     try {
-      // Deploy to Vercel (placeholder - would use Vercel API)
+      // Deploy to Vercel
       const deploymentUrl = await deployToVercel(ctx, server);
 
       // Update status to deployed
@@ -256,8 +359,13 @@ export const deployServer = action({
         deploymentUrl,
       });
 
-      // Generate documentation
-      await ctx.runAction(api.ai.generateDocumentation, { serverId });
+      // Generate documentation (non-blocking, log errors but don't fail deployment)
+      try {
+        await ctx.runAction(api.ai.generateDocumentation, { serverId });
+      } catch (docError) {
+        console.error("Failed to generate documentation:", docError);
+        // Documentation is optional, don't fail the whole deployment
+      }
 
       return { url: deploymentUrl, status: "deployed" };
     } catch (error: any) {
@@ -265,7 +373,7 @@ export const deployServer = action({
         serverId,
         status: "failed",
       });
-      throw error;
+      throw new Error(`Deployment failed: ${error.message || "Unknown error"}`);
     }
   },
 });
@@ -560,20 +668,23 @@ async function analyzeGitHubRepo(
   // Recursive function to explore directories
   async function exploreDirectory(path: string, depth: number = 0): Promise<Array<{ path: string; download_url: string; score: number }>> {
     if (depth > 3) return []; // Limit depth to avoid too deep recursion
-    
-    const apiUrl = path 
+
+    const apiUrl = path
       ? `https://api.github.com/repos/${owner}/${repo}/contents/${path}`
       : `https://api.github.com/repos/${owner}/${repo}/contents`;
-    
-    const response = await fetch(apiUrl, {
-      headers: {
-        "Accept": "application/vnd.github.v3+json",
-        "User-Agent": "MCP-App-Store"
-      }
-    });
+
+    const response = await fetchWithTimeout(
+      apiUrl,
+      { headers: getGitHubHeaders() },
+      GITHUB_TIMEOUT_MS
+    );
 
     if (!response.ok) {
-      console.warn(`Failed to fetch ${apiUrl}: ${response.status}`);
+      if (response.status === 403) {
+        console.warn(`GitHub API rate limit hit while fetching ${path || "root"}`);
+      } else {
+        console.warn(`Failed to fetch ${apiUrl}: ${response.status}`);
+      }
       return [];
     }
 
@@ -641,38 +752,60 @@ async function analyzeGitHubRepo(
     );
   }
 
-  // Download file contents
+  // Download file contents with failure tracking
+  let downloadFailures = 0;
   for (const file of topFiles) {
-    if (totalSize >= maxTotalSize) break;
-    
+    if (totalSize >= maxTotalSize) {
+      console.log(`Reached max content size (${maxTotalSize} bytes), stopping downloads`);
+      break;
+    }
+
     try {
-      const contentResponse = await fetch(file.download_url, {
-        headers: { "User-Agent": "MCP-App-Store" }
-      });
-      
+      const contentResponse = await fetchWithTimeout(
+        file.download_url,
+        { headers: getGitHubHeaders() },
+        GITHUB_TIMEOUT_MS
+      );
+
       if (contentResponse.ok) {
         const content = await contentResponse.text();
         const truncatedContent = content.slice(0, maxContentSize);
+        if (truncatedContent.length < content.length) {
+          console.log(`File ${file.path} truncated from ${content.length} to ${maxContentSize} bytes`);
+        }
         relevantFiles.push({
           path: file.path,
           content: truncatedContent,
         });
         totalSize += truncatedContent.length;
+      } else {
+        downloadFailures++;
+        console.warn(`Failed to download ${file.path}: ${contentResponse.status}`);
       }
     } catch (err) {
-      console.warn(`Failed to download ${file.path}:`, err);
+      downloadFailures++;
+      console.warn(`Failed to download ${file.path}:`, err instanceof Error ? err.message : err);
     }
   }
 
+  // Check if too many downloads failed
+  const successRate = relevantFiles.length / topFiles.length;
   if (relevantFiles.length === 0) {
     throw new Error(
       `Failed to download any code files from repository ${owner}/${repo}. ` +
-      `Please check if the repository is accessible.`
+      `${downloadFailures} files failed. Please check if the repository is accessible.`
+    );
+  } else if (successRate < 0.5) {
+    console.warn(
+      `Only ${relevantFiles.length}/${topFiles.length} files downloaded successfully. ` +
+      `Analysis may be incomplete.`
     );
   }
 
-  console.log(`Analyzing ${relevantFiles.length} files from ${owner}/${repo}:`, 
-    relevantFiles.map(f => f.path));
+  console.log(
+    `Analyzing ${relevantFiles.length} files from ${owner}/${repo}:`,
+    relevantFiles.map(f => f.path)
+  );
 
   // Use Claude to analyze the code
   const result = await analyzeRepo(relevantFiles);
@@ -687,18 +820,18 @@ async function analyzeGitHubRepo(
 async function deployToVercel(ctx: any, server: any): Promise<string> {
   // Get stored API keys for this server if it requires external API keys
   let envVars: Record<string, string> = {};
-  
+
   if (server.requiresExternalApiKey && server.externalApiService) {
-    // Get the stored API key for this service
-    const storedKey = await ctx.runQuery(api.builder.getExternalApiKey, {
+    // Get the decrypted API key for this service
+    const decryptedKey = await ctx.runAction(api.builder.getDecryptedApiKey, {
       userId: server.userId,
       serviceName: server.externalApiService,
     });
-    
-    if (storedKey) {
+
+    if (decryptedKey) {
       // Store API keys as JSON string for deployment
       envVars.STORED_API_KEYS = JSON.stringify({
-        [server.externalApiService]: storedKey.serviceKey,
+        [server.externalApiService]: decryptedKey,
       });
     }
   }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import {
@@ -50,7 +50,7 @@ export function ApiKeyDialog({
     userId && serviceName ? { userId, serviceName } : "skip"
   );
 
-  const storeKey = useMutation(api.builder.storeExternalApiKey);
+  const storeKey = useAction(api.builder.storeExternalApiKey);
 
   const handleSaveKey = async () => {
     if (!apiKey.trim()) {

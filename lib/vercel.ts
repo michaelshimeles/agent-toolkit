@@ -325,16 +325,15 @@ export function prepareMCPServerFiles(params: {
   );
 
   // vercel.json - using Edge runtime for better performance
-  // Use 'builds' to explicitly tell Vercel to handle this as serverless functions
+  // Edge functions are auto-detected when runtime = "edge" is exported
   files["vercel.json"] = JSON.stringify(
     {
       version: 2,
-      builds: [
-        {
-          src: "api/index.ts",
-          use: "@vercel/node",
+      functions: {
+        "api/index.ts": {
+          runtime: "edge",
         },
-      ],
+      },
       routes: [
         {
           src: "/(.*)",

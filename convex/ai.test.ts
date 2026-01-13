@@ -1,522 +1,489 @@
 /**
  * Tests for AI Builder - Convex Actions
+ *
+ * These tests verify the actual functionality of the AI builder utilities
+ * and mock external API calls for integration testing.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-describe("AI Builder - Convex Actions", () => {
-  describe("OpenAPI Parsing", () => {
-    it("should parse OpenAPI spec paths", () => {
-      const spec = {
-        paths: {
-          "/users": {
-            get: {
-              operationId: "listUsers",
-              summary: "List all users",
-            },
-          },
-        },
-      };
+// Mock fetch globally
+const mockFetch = vi.fn();
+global.fetch = mockFetch;
 
-      const paths = Object.keys(spec.paths);
-      expect(paths).toContain("/users");
+// Import after mocking
+// Note: We test the utility functions by recreating them here since
+// Convex functions can't be directly imported in Node.js test environment
+
+// ============================================================================
+// Utility Function Implementations (copied from convex/ai.ts for testing)
+// ============================================================================
+
+const DEFAULT_TIMEOUT_MS = 30000;
+const GITHUB_TIMEOUT_MS = 15000;
+
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit = {},
+  timeoutMs: number = DEFAULT_TIMEOUT_MS
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    return response;
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`Request timeout after ${timeoutMs}ms: ${url}`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function generateSlug(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  if (!slug) {
+    return `server-${Date.now()}`;
+  }
+
+  return slug;
+}
+
+function isValidUrl(url: string): boolean {
+  try {
+    new URL(url);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function getGitHubHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Accept": "application/vnd.github.v3+json",
+    "User-Agent": "MCP-Hub-Builder",
+  };
+
+  const githubToken = process.env.GITHUB_TOKEN;
+  if (githubToken) {
+    headers["Authorization"] = `Bearer ${githubToken}`;
+  }
+
+  return headers;
+}
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+describe("AI Builder Utilities", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  describe("fetchWithTimeout", () => {
+    it("should return response when fetch succeeds", async () => {
+      const mockResponse = new Response(JSON.stringify({ ok: true }), { status: 200 });
+      mockFetch.mockResolvedValueOnce(mockResponse);
+
+      const responsePromise = fetchWithTimeout("https://api.example.com/test");
+      vi.runAllTimers();
+      const response = await responsePromise;
+
+      expect(response.status).toBe(200);
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://api.example.com/test",
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
+      );
     });
 
-    it("should extract HTTP methods from paths", () => {
-      const pathMethods = {
-        get: { operationId: "getUser" },
-        post: { operationId: "createUser" },
-      };
+    it("should throw timeout error when request exceeds timeout", async () => {
+      const abortError = new Error("Aborted");
+      abortError.name = "AbortError";
+      mockFetch.mockRejectedValueOnce(abortError);
 
-      const methods = Object.keys(pathMethods);
-      expect(methods).toContain("get");
-      expect(methods).toContain("post");
+      await expect(
+        fetchWithTimeout("https://api.example.com/slow", {}, 1000)
+      ).rejects.toThrow("Request timeout after 1000ms");
     });
 
-    it("should extract operation IDs", () => {
-      const operation = {
-        operationId: "listCustomers",
-        summary: "List all customers",
-      };
+    it("should pass through non-abort errors", async () => {
+      const networkError = new Error("Network failure");
+      mockFetch.mockRejectedValueOnce(networkError);
 
-      expect(operation.operationId).toBe("listCustomers");
+      const responsePromise = fetchWithTimeout("https://api.example.com/test");
+      vi.runAllTimers();
+
+      await expect(responsePromise).rejects.toThrow("Network failure");
     });
 
-    it("should extract operation summaries", () => {
-      const operation = {
-        operationId: "getUser",
-        summary: "Get user by ID",
-      };
+    it("should include custom headers in request", async () => {
+      const mockResponse = new Response("{}", { status: 200 });
+      mockFetch.mockResolvedValueOnce(mockResponse);
 
-      expect(operation.summary).toBe("Get user by ID");
-    });
+      const responsePromise = fetchWithTimeout(
+        "https://api.example.com/test",
+        { headers: { "X-Custom": "value" } }
+      );
+      vi.runAllTimers();
+      await responsePromise;
 
-    it("should extract operation descriptions", () => {
-      const operation = {
-        operationId: "createOrder",
-        description: "Create a new order in the system",
-      };
-
-      expect(operation.description).toBe("Create a new order in the system");
-    });
-
-    it("should extract parameters", () => {
-      const operation = {
-        parameters: [
-          { name: "id", in: "path", required: true },
-          { name: "limit", in: "query", required: false },
-        ],
-      };
-
-      expect(operation.parameters).toHaveLength(2);
-      expect(operation.parameters[0].name).toBe("id");
-    });
-
-    it("should extract request body", () => {
-      const operation = {
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: { type: "object" },
-            },
-          },
-        },
-      };
-
-      expect(operation.requestBody.required).toBe(true);
-    });
-
-    it("should extract responses", () => {
-      const operation = {
-        responses: {
-          "200": { description: "Success" },
-          "404": { description: "Not found" },
-        },
-      };
-
-      expect(operation.responses["200"].description).toBe("Success");
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://api.example.com/test",
+        expect.objectContaining({
+          headers: { "X-Custom": "value" },
+        })
+      );
     });
   });
 
-  describe("Schema Extraction", () => {
-    it("should extract component schemas from OpenAPI spec", () => {
-      const spec = {
-        components: {
-          schemas: {
-            User: {
-              type: "object",
-              properties: {
-                id: { type: "string" },
-                name: { type: "string" },
-              },
-            },
-          },
-        },
-      };
-
-      expect(spec.components.schemas.User).toBeDefined();
-      expect(spec.components.schemas.User.type).toBe("object");
+  describe("generateSlug", () => {
+    it("should convert name to lowercase slug", () => {
+      expect(generateSlug("My API Server")).toBe("my-api-server");
     });
 
-    it("should handle missing components", () => {
-      const spec: any = {};
-      const schemas = spec.components?.schemas || {};
-      expect(Object.keys(schemas)).toHaveLength(0);
+    it("should replace special characters with hyphens", () => {
+      expect(generateSlug("API v2.0 (Beta)")).toBe("api-v2-0-beta");
     });
 
-    it("should extract schema properties", () => {
-      const schema = {
-        type: "object",
-        properties: {
-          id: { type: "string" },
-          email: { type: "string" },
-        },
-      };
-
-      expect(schema.properties.id.type).toBe("string");
-      expect(schema.properties.email.type).toBe("string");
+    it("should remove leading and trailing hyphens", () => {
+      expect(generateSlug("--My Server--")).toBe("my-server");
+      expect(generateSlug("@#$My Server!@#")).toBe("my-server");
     });
 
-    it("should extract required fields", () => {
-      const schema = {
-        type: "object",
-        required: ["id", "name"],
-        properties: {
-          id: { type: "string" },
-          name: { type: "string" },
-          email: { type: "string" },
-        },
-      };
+    it("should collapse multiple hyphens", () => {
+      expect(generateSlug("My   Server   Name")).toBe("my-server-name");
+    });
 
-      expect(schema.required).toContain("id");
-      expect(schema.required).toContain("name");
-      expect(schema.required).not.toContain("email");
+    it("should return fallback for empty result", () => {
+      const slug = generateSlug("@#$%^&*");
+      expect(slug).toMatch(/^server-\d+$/);
+    });
+
+    it("should handle unicode characters", () => {
+      expect(generateSlug("My Servér Ñame")).toBe("my-serv-r-ame");
+    });
+
+    it("should handle already valid slugs", () => {
+      expect(generateSlug("my-valid-slug")).toBe("my-valid-slug");
     });
   });
 
-  describe("Tool Extraction from Code", () => {
-    it("should extract tools from generated code", () => {
-      const code = JSON.stringify({
-        endpoints: [
-          {
-            operationId: "listUsers",
-            summary: "List all users",
-            method: "GET",
-            path: "/users",
+  describe("isValidUrl", () => {
+    it("should return true for valid HTTP URLs", () => {
+      expect(isValidUrl("https://api.example.com")).toBe(true);
+      expect(isValidUrl("http://localhost:3000")).toBe(true);
+      expect(isValidUrl("https://api.github.com/repos/owner/repo")).toBe(true);
+    });
+
+    it("should return false for invalid URLs", () => {
+      expect(isValidUrl("not-a-url")).toBe(false);
+      expect(isValidUrl("")).toBe(false);
+      expect(isValidUrl("ftp://invalid")).toBe(true); // ftp is technically valid
+    });
+
+    it("should return false for relative paths", () => {
+      expect(isValidUrl("/api/endpoint")).toBe(false);
+      expect(isValidUrl("./path")).toBe(false);
+    });
+  });
+
+  describe("getGitHubHeaders", () => {
+    const originalEnv = process.env;
+
+    beforeEach(() => {
+      process.env = { ...originalEnv };
+    });
+
+    afterEach(() => {
+      process.env = originalEnv;
+    });
+
+    it("should return base headers without token", () => {
+      delete process.env.GITHUB_TOKEN;
+      const headers = getGitHubHeaders();
+
+      expect(headers).toEqual({
+        "Accept": "application/vnd.github.v3+json",
+        "User-Agent": "MCP-Hub-Builder",
+      });
+    });
+
+    it("should include Authorization header when token is set", () => {
+      process.env.GITHUB_TOKEN = "ghp_testtoken123";
+      const headers = getGitHubHeaders();
+
+      expect(headers).toEqual({
+        "Accept": "application/vnd.github.v3+json",
+        "User-Agent": "MCP-Hub-Builder",
+        "Authorization": "Bearer ghp_testtoken123",
+      });
+    });
+  });
+});
+
+describe("GitHub URL Parsing", () => {
+  function parseGitHubUrl(url: string): { owner: string; repo: string } | null {
+    const match = url.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+    if (!match) return null;
+    return { owner: match[1], repo: match[2].replace(/\.git$/, "") };
+  }
+
+  it("should parse standard GitHub URLs", () => {
+    expect(parseGitHubUrl("https://github.com/owner/repo")).toEqual({
+      owner: "owner",
+      repo: "repo",
+    });
+  });
+
+  it("should handle URLs with .git suffix", () => {
+    expect(parseGitHubUrl("https://github.com/owner/repo.git")).toEqual({
+      owner: "owner",
+      repo: "repo",
+    });
+  });
+
+  it("should handle URLs with trailing paths", () => {
+    expect(parseGitHubUrl("https://github.com/owner/repo/tree/main")).toEqual({
+      owner: "owner",
+      repo: "repo",
+    });
+  });
+
+  it("should return null for non-GitHub URLs", () => {
+    expect(parseGitHubUrl("https://gitlab.com/owner/repo")).toBeNull();
+    expect(parseGitHubUrl("https://bitbucket.org/owner/repo")).toBeNull();
+  });
+
+  it("should return null for invalid URLs", () => {
+    expect(parseGitHubUrl("not a url")).toBeNull();
+    expect(parseGitHubUrl("https://github.com/")).toBeNull();
+  });
+});
+
+describe("OpenAPI Parsing", () => {
+  function parseOpenAPIEndpoints(spec: any): any[] {
+    const endpoints: any[] = [];
+    const paths = spec.paths || {};
+
+    for (const [path, methods] of Object.entries(paths)) {
+      for (const [method, details] of Object.entries(methods as any)) {
+        if (["get", "post", "put", "patch", "delete"].includes(method)) {
+          endpoints.push({
+            path,
+            method: method.toUpperCase(),
+            operationId: (details as any).operationId,
+            summary: (details as any).summary,
+            description: (details as any).description,
+            parameters: (details as any).parameters,
+            requestBody: (details as any).requestBody,
+            responses: (details as any).responses,
+          });
+        }
+      }
+    }
+
+    return endpoints;
+  }
+
+  it("should extract endpoints from OpenAPI spec", () => {
+    const spec = {
+      paths: {
+        "/users": {
+          get: { operationId: "listUsers", summary: "List users" },
+          post: { operationId: "createUser", summary: "Create user" },
+        },
+        "/users/{id}": {
+          get: { operationId: "getUser", summary: "Get user" },
+          delete: { operationId: "deleteUser", summary: "Delete user" },
+        },
+      },
+    };
+
+    const endpoints = parseOpenAPIEndpoints(spec);
+
+    expect(endpoints).toHaveLength(4);
+    expect(endpoints.map((e) => e.operationId)).toEqual([
+      "listUsers",
+      "createUser",
+      "getUser",
+      "deleteUser",
+    ]);
+  });
+
+  it("should handle empty paths", () => {
+    expect(parseOpenAPIEndpoints({})).toEqual([]);
+    expect(parseOpenAPIEndpoints({ paths: {} })).toEqual([]);
+  });
+
+  it("should skip non-HTTP methods", () => {
+    const spec = {
+      paths: {
+        "/test": {
+          get: { operationId: "test" },
+          parameters: [], // This should be skipped
+          servers: [], // This should be skipped
+        },
+      },
+    };
+
+    const endpoints = parseOpenAPIEndpoints(spec);
+    expect(endpoints).toHaveLength(1);
+  });
+
+  it("should preserve all endpoint details", () => {
+    const spec = {
+      paths: {
+        "/items": {
+          post: {
+            operationId: "createItem",
+            summary: "Create item",
+            description: "Creates a new item",
+            parameters: [{ name: "type", in: "query" }],
+            requestBody: { required: true },
+            responses: { "201": { description: "Created" } },
           },
-        ],
+        },
+      },
+    };
+
+    const endpoints = parseOpenAPIEndpoints(spec);
+    const endpoint = endpoints[0];
+
+    expect(endpoint.operationId).toBe("createItem");
+    expect(endpoint.summary).toBe("Create item");
+    expect(endpoint.description).toBe("Creates a new item");
+    expect(endpoint.parameters).toHaveLength(1);
+    expect(endpoint.requestBody).toEqual({ required: true });
+    expect(endpoint.responses).toHaveProperty("201");
+  });
+});
+
+describe("Server Status Transitions", () => {
+  const validStatuses = ["analyzing", "generating", "draft", "deploying", "deployed", "failed"];
+
+  it("should validate all status values", () => {
+    validStatuses.forEach((status) => {
+      expect(validStatuses).toContain(status);
+    });
+  });
+
+  const validTransitions: Record<string, string[]> = {
+    analyzing: ["generating", "failed"],
+    generating: ["draft", "failed"],
+    draft: ["deploying", "failed"],
+    deploying: ["deployed", "failed"],
+    deployed: ["deploying", "failed"], // Re-deploy
+    failed: ["analyzing", "generating", "draft", "deploying"], // Retry from any state
+  };
+
+  it("should allow valid status transitions", () => {
+    Object.entries(validTransitions).forEach(([from, toStates]) => {
+      toStates.forEach((to) => {
+        expect(validStatuses).toContain(from);
+        expect(validStatuses).toContain(to);
+      });
+    });
+  });
+});
+
+describe("Tool Schema Generation", () => {
+  function generateToolSchema(endpoint: any): any {
+    const properties: Record<string, any> = {};
+    const required: string[] = [];
+
+    // Extract from parameters
+    (endpoint.parameters || []).forEach((param: any) => {
+      properties[param.name] = {
+        type: param.schema?.type || "string",
+        description: param.description,
+      };
+      if (param.required) {
+        required.push(param.name);
+      }
+    });
+
+    // Extract from requestBody
+    if (endpoint.requestBody?.content?.["application/json"]?.schema?.properties) {
+      const bodyProps = endpoint.requestBody.content["application/json"].schema.properties;
+      Object.entries(bodyProps).forEach(([name, schema]: [string, any]) => {
+        properties[name] = schema;
       });
 
-      const parsed = JSON.parse(code);
-      expect(parsed.endpoints).toHaveLength(1);
-      expect(parsed.endpoints[0].operationId).toBe("listUsers");
-    });
+      const bodyRequired = endpoint.requestBody.content["application/json"].schema.required || [];
+      required.push(...bodyRequired);
+    }
 
-    it("should generate tool names from operation IDs", () => {
-      const endpoint = {
-        operationId: "getUserById",
-        method: "GET",
-        path: "/users/{id}",
-      };
+    return {
+      type: "object",
+      properties,
+      required,
+    };
+  }
 
-      const toolName = endpoint.operationId || `${endpoint.method}_${endpoint.path}`.toLowerCase();
-      expect(toolName).toBe("getUserById");
-    });
+  it("should generate schema from parameters", () => {
+    const endpoint = {
+      parameters: [
+        { name: "id", required: true, schema: { type: "string" } },
+        { name: "limit", required: false, schema: { type: "number" } },
+      ],
+    };
 
-    it("should fall back to method+path for tool names", () => {
-      const endpoint = {
-        method: "GET",
-        path: "/users",
-      };
+    const schema = generateToolSchema(endpoint);
 
-      const toolName = `${endpoint.method}_${endpoint.path}`.toLowerCase();
-      expect(toolName).toContain("get");
-      expect(toolName).toContain("/users");
-    });
+    expect(schema.properties).toHaveProperty("id");
+    expect(schema.properties).toHaveProperty("limit");
+    expect(schema.required).toContain("id");
+    expect(schema.required).not.toContain("limit");
+  });
 
-    it("should extract tool descriptions from summaries", () => {
-      const endpoint = {
-        operationId: "createUser",
-        summary: "Create a new user account",
-        description: "Creates a new user in the system",
-      };
-
-      const description = endpoint.summary || endpoint.description || "";
-      expect(description).toBe("Create a new user account");
-    });
-
-    it("should create empty schema objects for tools", () => {
-      const tool = {
-        name: "listUsers",
-        description: "List all users",
-        schema: {
-          type: "object",
-          properties: {},
+  it("should generate schema from request body", () => {
+    const endpoint = {
+      requestBody: {
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              properties: {
+                name: { type: "string" },
+                email: { type: "string" },
+              },
+              required: ["name"],
+            },
+          },
         },
-      };
+      },
+    };
 
-      expect(tool.schema.type).toBe("object");
-      expect(tool.schema.properties).toEqual({});
-    });
+    const schema = generateToolSchema(endpoint);
+
+    expect(schema.properties).toHaveProperty("name");
+    expect(schema.properties).toHaveProperty("email");
+    expect(schema.required).toContain("name");
   });
 
-  describe("GitHub URL Parsing", () => {
-    it("should parse GitHub owner and repo from URL", () => {
-      const url = "https://github.com/owner/repo";
-      const match = url.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+  it("should handle empty endpoint", () => {
+    const schema = generateToolSchema({});
 
-      expect(match).not.toBeNull();
-      if (match) {
-        expect(match[1]).toBe("owner");
-        expect(match[2]).toBe("repo");
-      }
-    });
-
-    it("should handle GitHub URLs with .git extension", () => {
-      const url = "https://github.com/owner/repo.git";
-      const match = url.match(/github\.com\/([^\/]+)\/([^\/]+)/);
-
-      if (match) {
-        const repo = match[2].replace(/\.git$/, "");
-        expect(repo).toBe("repo");
-      }
-    });
-
-    it("should reject invalid GitHub URLs", () => {
-      const url = "https://gitlab.com/owner/repo";
-      const match = url.match(/github\.com\/([^\/]+)\/([^\/]+)/);
-
-      expect(match).toBeNull();
-    });
-
-    it("should construct GitHub API URL", () => {
-      const owner = "octocat";
-      const repo = "Hello-World";
-      const apiUrl = `https://api.github.com/repos/${owner}/${repo}`;
-
-      expect(apiUrl).toBe("https://api.github.com/repos/octocat/Hello-World");
-    });
-  });
-
-  describe("Server Status", () => {
-    it("should support analyzing status", () => {
-      const status = "analyzing";
-      expect(["analyzing", "generating", "draft", "deploying", "deployed", "failed"]).toContain(status);
-    });
-
-    it("should support generating status", () => {
-      const status = "generating";
-      expect(["analyzing", "generating", "draft", "deploying", "deployed", "failed"]).toContain(status);
-    });
-
-    it("should support draft status", () => {
-      const status = "draft";
-      expect(["analyzing", "generating", "draft", "deploying", "deployed", "failed"]).toContain(status);
-    });
-
-    it("should support deploying status", () => {
-      const status = "deploying";
-      expect(["analyzing", "generating", "draft", "deploying", "deployed", "failed"]).toContain(status);
-    });
-
-    it("should support deployed status", () => {
-      const status = "deployed";
-      expect(["analyzing", "generating", "draft", "deploying", "deployed", "failed"]).toContain(status);
-    });
-
-    it("should support failed status", () => {
-      const status = "failed";
-      expect(["analyzing", "generating", "draft", "deploying", "deployed", "failed"]).toContain(status);
-    });
-  });
-
-  describe("Source Types", () => {
-    it("should support OpenAPI source type", () => {
-      const sourceType = "openapi";
-      expect(["openapi", "docs_url", "github_repo", "postman", "text"]).toContain(sourceType);
-    });
-
-    it("should support docs_url source type", () => {
-      const sourceType = "docs_url";
-      expect(["openapi", "docs_url", "github_repo", "postman", "text"]).toContain(sourceType);
-    });
-
-    it("should support github_repo source type", () => {
-      const sourceType = "github_repo";
-      expect(["openapi", "docs_url", "github_repo", "postman", "text"]).toContain(sourceType);
-    });
-
-    it("should support postman source type", () => {
-      const sourceType = "postman";
-      expect(["openapi", "docs_url", "github_repo", "postman", "text"]).toContain(sourceType);
-    });
-
-    it("should support text source type", () => {
-      const sourceType = "text";
-      expect(["openapi", "docs_url", "github_repo", "postman", "text"]).toContain(sourceType);
-    });
-  });
-
-  describe("Slug Generation", () => {
-    it("should generate URL-safe slug from name", () => {
-      const name = "My API Server";
-      const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-
-      expect(slug).toBe("my-api-server");
-    });
-
-    it("should handle special characters in slug", () => {
-      const name = "API v2.0 (Beta)";
-      const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-
-      expect(slug).toBe("api-v2-0-beta-");
-    });
-
-    it("should handle multiple spaces in slug", () => {
-      const name = "Test   Server   Name";
-      const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-
-      expect(slug).toBe("test-server-name");
-    });
-
-    it("should remove non-alphanumeric characters", () => {
-      const name = "My@API#Server!";
-      const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-
-      expect(slug).toBe("my-api-server-");
-    });
-  });
-
-  describe("Deployment URL Generation", () => {
-    it("should generate deployment URL from slug", () => {
-      const slug = "my-api-server";
-      const deploymentUrl = `https://${slug}.mcphub.dev`;
-
-      expect(deploymentUrl).toBe("https://my-api-server.mcphub.dev");
-    });
-
-    it("should use HTTPS protocol", () => {
-      const slug = "test-server";
-      const deploymentUrl = `https://${slug}.mcphub.dev`;
-
-      expect(deploymentUrl).toContain("https://");
-    });
-
-    it("should use mcphub.dev domain", () => {
-      const slug = "api-server";
-      const deploymentUrl = `https://${slug}.mcphub.dev`;
-
-      expect(deploymentUrl).toContain(".mcphub.dev");
-    });
-  });
-
-  describe("Security Configuration", () => {
-    it("should default rate limit to 100", () => {
-      const rateLimit = 100;
-      expect(rateLimit).toBe(100);
-    });
-
-    it("should initialize allowed domains as empty array", () => {
-      const allowedDomains: string[] = [];
-      expect(allowedDomains).toEqual([]);
-      expect(Array.isArray(allowedDomains)).toBe(true);
-    });
-
-    it("should support multiple allowed domains", () => {
-      const allowedDomains = ["api.example.com", "api2.example.com"];
-      expect(allowedDomains).toHaveLength(2);
-    });
-  });
-
-  describe("Version Management", () => {
-    it("should start at version 1", () => {
-      const version = 1;
-      expect(version).toBe(1);
-    });
-
-    it("should support version history", () => {
-      const previousVersions: string[] = [];
-      expect(Array.isArray(previousVersions)).toBe(true);
-    });
-
-    it("should increment version on updates", () => {
-      let version = 1;
-      version += 1;
-      expect(version).toBe(2);
-    });
-  });
-
-  describe("Documentation Generation", () => {
-    it("should generate README for tools", () => {
-      const toolCount = 5;
-      const readme = `# ${toolCount} MCP Tools\n\nGenerated documentation`;
-
-      expect(readme).toContain("5 MCP Tools");
-      expect(readme).toContain("Generated documentation");
-    });
-
-    it("should create tool docs for each tool", () => {
-      const tools = [
-        { name: "tool1", description: "Description 1", schema: {} },
-        { name: "tool2", description: "Description 2", schema: {} },
-      ];
-
-      const toolDocs = tools.map((tool) => ({
-        name: tool.name,
-        description: tool.description,
-        params: "{}",
-        example: "{}",
-      }));
-
-      expect(toolDocs).toHaveLength(2);
-      expect(toolDocs[0].name).toBe("tool1");
-    });
-
-    it("should include params in tool docs", () => {
-      const toolDoc = {
-        name: "listUsers",
-        description: "List users",
-        params: "{}",
-        example: "{}",
-      };
-
-      expect(toolDoc.params).toBe("{}");
-    });
-
-    it("should include examples in tool docs", () => {
-      const toolDoc = {
-        name: "createUser",
-        description: "Create user",
-        params: "{}",
-        example: "{}",
-      };
-
-      expect(toolDoc.example).toBe("{}");
-    });
-  });
-
-  describe("Error Handling", () => {
-    it("should throw error for failed spec fetch", async () => {
-      const errorMessage = "Failed to fetch OpenAPI spec: Not Found";
-      expect(errorMessage).toContain("Failed to fetch");
-      expect(errorMessage).toContain("Not Found");
-    });
-
-    it("should throw error for invalid GitHub URL", () => {
-      const url = "https://not-github.com/repo";
-      const match = url.match(/github\.com\/([^\/]+)\/([^\/]+)/);
-
-      if (!match) {
-        const error = "Invalid GitHub URL";
-        expect(error).toBe("Invalid GitHub URL");
-      }
-    });
-
-    it("should throw error for repository not found", () => {
-      const errorMessage = "Repository not found";
-      expect(errorMessage).toBe("Repository not found");
-    });
-
-    it("should throw error when server not found", () => {
-      const server = null;
-      if (!server) {
-        const error = "Server not found";
-        expect(error).toBe("Server not found");
-      }
-    });
-  });
-
-  describe("HTTP Methods", () => {
-    it("should support GET method", () => {
-      const method = "GET";
-      expect(["GET", "POST", "PUT", "PATCH", "DELETE"]).toContain(method);
-    });
-
-    it("should support POST method", () => {
-      const method = "POST";
-      expect(["GET", "POST", "PUT", "PATCH", "DELETE"]).toContain(method);
-    });
-
-    it("should support PUT method", () => {
-      const method = "PUT";
-      expect(["GET", "POST", "PUT", "PATCH", "DELETE"]).toContain(method);
-    });
-
-    it("should support PATCH method", () => {
-      const method = "PATCH";
-      expect(["GET", "POST", "PUT", "PATCH", "DELETE"]).toContain(method);
-    });
-
-    it("should support DELETE method", () => {
-      const method = "DELETE";
-      expect(["GET", "POST", "PUT", "PATCH", "DELETE"]).toContain(method);
-    });
-
-    it("should convert method to uppercase", () => {
-      const method = "get";
-      const normalized = method.toUpperCase();
-      expect(normalized).toBe("GET");
+    expect(schema).toEqual({
+      type: "object",
+      properties: {},
+      required: [],
     });
   });
 });

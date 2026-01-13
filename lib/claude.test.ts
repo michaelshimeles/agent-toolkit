@@ -540,4 +540,82 @@ describe("Claude API Integration", () => {
       expect(typeof generator.throw).toBe("function");
     });
   });
+
+  describe("Response Validation", () => {
+    // Validation function implementations for testing
+    interface ValidationResult {
+      valid: boolean;
+      errors: string[];
+    }
+
+    function validateMCPCodeResponse(data: any): ValidationResult {
+      const errors: string[] = [];
+
+      if (!data || typeof data !== "object") {
+        return { valid: false, errors: ["Response is not an object"] };
+      }
+
+      if (typeof data.code !== "string") {
+        errors.push("Missing or invalid 'code' field (expected string)");
+      } else if (data.code.length < 100) {
+        errors.push("Generated code is too short (less than 100 characters)");
+      }
+
+      if (data.tools !== undefined) {
+        if (!Array.isArray(data.tools)) {
+          errors.push("'tools' field is not an array");
+        } else {
+          data.tools.forEach((tool: any, index: number) => {
+            if (typeof tool.name !== "string" || !tool.name) {
+              errors.push(`Tool at index ${index} is missing 'name'`);
+            }
+            if (typeof tool.description !== "string") {
+              errors.push(`Tool at index ${index} is missing 'description'`);
+            }
+          });
+        }
+      }
+
+      return { valid: errors.length === 0, errors };
+    }
+
+    it("should validate correct MCP code response", () => {
+      const validResponse = {
+        code: "x".repeat(200),
+        tools: [
+          { name: "tool1", description: "First tool", schema: {} },
+        ],
+      };
+
+      const result = validateMCPCodeResponse(validResponse);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("should reject response without code", () => {
+      const result = validateMCPCodeResponse({ tools: [] });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain("Missing or invalid 'code' field (expected string)");
+    });
+
+    it("should reject code that is too short", () => {
+      const result = validateMCPCodeResponse({ code: "short" });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain("Generated code is too short (less than 100 characters)");
+    });
+
+    it("should reject tools without names", () => {
+      const result = validateMCPCodeResponse({
+        code: "x".repeat(200),
+        tools: [{ description: "Missing name" }],
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors.some(e => e.includes("missing 'name'"))).toBe(true);
+    });
+
+    it("should accept response without tools field", () => {
+      const result = validateMCPCodeResponse({ code: "x".repeat(200) });
+      expect(result.valid).toBe(true);
+    });
+  });
 });

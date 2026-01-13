@@ -9,6 +9,7 @@ const mockGetExistingKey = vi.fn();
 
 vi.mock("convex/react", () => ({
   useMutation: () => mockStoreKey,
+  useAction: () => mockStoreKey,
   useQuery: vi.fn((_, args) => {
     if (args?.serviceName === "OpenWeatherMap") {
       return mockGetExistingKey();
