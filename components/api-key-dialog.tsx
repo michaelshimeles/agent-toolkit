@@ -47,8 +47,7 @@ export function ApiKeyDialog({
   // Check if user already has a key for this service
   const existingKey = useQuery(
     api.builder.getExternalApiKey,
-    { userId, serviceName },
-    { skip: !userId || !serviceName }
+    userId && serviceName ? { userId, serviceName } : "skip"
   );
 
   const storeKey = useMutation(api.builder.storeExternalApiKey);

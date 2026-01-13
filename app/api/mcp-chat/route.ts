@@ -73,7 +73,8 @@ export async function POST(req: Request) {
     }
 
     // Convert MCP tools to AI SDK tools
-    const aiTools: Record<string, ReturnType<typeof tool>> = {};
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const aiTools: Record<string, any> = {};
 
     for (const mcpTool of serverTools) {
       const toolName = mcpTool.name.replace(/[^a-zA-Z0-9_]/g, "_");
@@ -129,8 +130,8 @@ export async function POST(req: Request) {
 
       aiTools[toolName] = tool({
         description: mcpTool.description || `Execute ${mcpTool.name}`,
-        parameters: z.object(zodProps),
-        execute: async (args) => {
+        inputSchema: z.object(zodProps),
+        execute: async (args: Record<string, unknown>) => {
           try {
             const response = await fetch(`${deploymentUrl}/tools/call`, {
               method: "POST",
@@ -190,7 +191,6 @@ Be concise but informative in your responses. When showing tool results, format 
           system: systemPrompt,
           messages: modelMessages,
           tools: aiTools,
-          maxSteps: 5,
         });
 
         // Merge the result stream into the writer

@@ -1,23 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import ApiKeysPage from "./page";
-
-// Mock Clerk useUser hook
-const mockUser = {
-  id: "user_123",
-  primaryEmailAddress: { emailAddress: "test@example.com" },
-  fullName: "Test User",
-};
-
-const mockUseUser = vi.fn(() => ({
-  user: mockUser,
-  isLoaded: true,
-  isSignedIn: true,
-}));
-
-vi.mock("@clerk/nextjs", () => ({
-  useUser: () => mockUseUser(),
-}));
+import ApiKeysClient from "./api-keys-client";
 
 // Mock fetch
 const mockFetch = vi.fn();
@@ -27,12 +10,6 @@ describe("ApiKeysPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetch.mockReset();
-    // Reset to default mock state
-    mockUseUser.mockReturnValue({
-      user: mockUser,
-      isLoaded: true,
-      isSignedIn: true,
-    });
   });
 
   afterEach(() => {
@@ -55,7 +32,7 @@ describe("ApiKeysPage", () => {
         json: async () => ({ keys: mockKeys }),
       });
 
-      render(<ApiKeysPage />);
+      render(<ApiKeysClient />);
 
       await waitFor(() => {
         expect(mockFetch).toHaveBeenCalledWith("/api/keys");
@@ -82,7 +59,7 @@ describe("ApiKeysPage", () => {
           )
       );
 
-      render(<ApiKeysPage />);
+      render(<ApiKeysClient />);
 
       // Should show loading spinner initially
       expect(
@@ -96,7 +73,7 @@ describe("ApiKeysPage", () => {
         json: async () => ({ keys: [] }),
       });
 
-      render(<ApiKeysPage />);
+      render(<ApiKeysClient />);
 
       await waitFor(() => {
         expect(screen.getByText("No API keys created yet")).toBeInTheDocument();
@@ -106,7 +83,7 @@ describe("ApiKeysPage", () => {
     it("should handle fetch errors gracefully", async () => {
       mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
-      render(<ApiKeysPage />);
+      render(<ApiKeysClient />);
 
       // Should not crash and should show empty state
       await waitFor(() => {
@@ -137,7 +114,7 @@ describe("ApiKeysPage", () => {
         json: async () => ({ keys: mockKeys }),
       });
 
-      render(<ApiKeysPage />);
+      render(<ApiKeysClient />);
 
       await waitFor(() => {
         expect(screen.getByText("Production")).toBeInTheDocument();
@@ -161,7 +138,7 @@ describe("ApiKeysPage", () => {
         json: async () => ({ keys: mockKeys }),
       });
 
-      render(<ApiKeysPage />);
+      render(<ApiKeysClient />);
 
       await waitFor(() => {
         expect(screen.getByText(/Created:/)).toBeInTheDocument();
@@ -183,7 +160,7 @@ describe("ApiKeysPage", () => {
         json: async () => ({ keys: mockKeys }),
       });
 
-      render(<ApiKeysPage />);
+      render(<ApiKeysClient />);
 
       await waitFor(() => {
         expect(screen.getByText(/Last used:/)).toBeInTheDocument();
@@ -213,7 +190,7 @@ describe("ApiKeysPage", () => {
           }),
         });
 
-      render(<ApiKeysPage />);
+      render(<ApiKeysClient />);
 
       await waitFor(() => {
         expect(screen.getByPlaceholderText(/Key name/)).toBeInTheDocument();
@@ -251,7 +228,7 @@ describe("ApiKeysPage", () => {
           json: async () => ({ keys: [] }),
         });
 
-      render(<ApiKeysPage />);
+      render(<ApiKeysClient />);
 
       await waitFor(() => {
         expect(screen.getByPlaceholderText(/Key name/)).toBeInTheDocument();
@@ -276,7 +253,7 @@ describe("ApiKeysPage", () => {
         json: async () => ({ keys: [] }),
       });
 
-      render(<ApiKeysPage />);
+      render(<ApiKeysClient />);
 
       await waitFor(() => {
         const createButton = screen.getByText("Create Key");
@@ -301,7 +278,7 @@ describe("ApiKeysPage", () => {
         json: async () => ({ keys: mockKeys }),
       });
 
-      render(<ApiKeysPage />);
+      render(<ApiKeysClient />);
 
       await waitFor(() => {
         expect(screen.getByText("Revoke")).toBeInTheDocument();
@@ -335,7 +312,7 @@ describe("ApiKeysPage", () => {
       // Mock window.confirm
       vi.spyOn(window, "confirm").mockReturnValue(true);
 
-      render(<ApiKeysPage />);
+      render(<ApiKeysClient />);
 
       await waitFor(() => {
         expect(screen.getByText("Revoke")).toBeInTheDocument();
@@ -359,7 +336,7 @@ describe("ApiKeysPage", () => {
         json: async () => ({ keys: [] }),
       });
 
-      render(<ApiKeysPage />);
+      render(<ApiKeysClient />);
 
       await waitFor(() => {
         expect(screen.getByText("Refresh")).toBeInTheDocument();
@@ -379,7 +356,7 @@ describe("ApiKeysPage", () => {
           }),
         });
 
-      render(<ApiKeysPage />);
+      render(<ApiKeysClient />);
 
       await waitFor(() => {
         expect(screen.getByText("Refresh")).toBeInTheDocument();
@@ -394,19 +371,8 @@ describe("ApiKeysPage", () => {
     });
   });
 
-  describe("User Not Logged In", () => {
-    it("should show sign in message when user is not logged in", async () => {
-      mockUseUser.mockReturnValue({
-        user: null,
-        isLoaded: true,
-        isSignedIn: false,
-      });
-
-      render(<ApiKeysPage />);
-
-      expect(screen.getByText("Please sign in to manage API keys")).toBeInTheDocument();
-    });
-  });
+  // Note: Authentication is handled by the server component (page.tsx)
+  // which redirects unauthenticated users before rendering ApiKeysClient
 
   describe("Usage Instructions", () => {
     it("should display usage instructions", async () => {
@@ -415,13 +381,15 @@ describe("ApiKeysPage", () => {
         json: async () => ({ keys: [] }),
       });
 
-      render(<ApiKeysPage />);
+      render(<ApiKeysClient />);
 
       await waitFor(() => {
         expect(screen.getByText("Usage Instructions")).toBeInTheDocument();
       });
 
-      expect(screen.getByText(/mcpServers/)).toBeInTheDocument();
+      // There are multiple mcpServers references in the usage instructions
+      const mcpServersElements = screen.getAllByText(/mcpServers/);
+      expect(mcpServersElements.length).toBeGreaterThanOrEqual(1);
     });
   });
 });
@@ -430,12 +398,6 @@ describe("API Keys User ID Mapping", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetch.mockReset();
-    // Reset to default mock state
-    mockUseUser.mockReturnValue({
-      user: mockUser,
-      isLoaded: true,
-      isSignedIn: true,
-    });
   });
 
   it("should load keys automatically without requiring manual refresh", async () => {
@@ -453,7 +415,7 @@ describe("API Keys User ID Mapping", () => {
       json: async () => ({ keys: mockKeys }),
     });
 
-    render(<ApiKeysPage />);
+    render(<ApiKeysClient />);
 
     // Keys should be fetched automatically
     await waitFor(() => {
@@ -473,7 +435,7 @@ describe("API Keys User ID Mapping", () => {
       json: async () => ({ error: "User not found" }),
     });
 
-    render(<ApiKeysPage />);
+    render(<ApiKeysClient />);
 
     // Should show empty state, not crash
     await waitFor(() => {
@@ -487,7 +449,7 @@ describe("API Keys User ID Mapping", () => {
       json: async () => ({ keys: [] }),
     });
 
-    render(<ApiKeysPage />);
+    render(<ApiKeysClient />);
 
     await waitFor(() => {
       expect(screen.getByText("No API keys created yet")).toBeInTheDocument();
@@ -500,7 +462,7 @@ describe("API Keys User ID Mapping", () => {
       json: async () => ({ keys: null }),
     });
 
-    render(<ApiKeysPage />);
+    render(<ApiKeysClient />);
 
     // Should fallback to empty array and show empty state
     await waitFor(() => {

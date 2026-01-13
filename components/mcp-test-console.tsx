@@ -344,7 +344,7 @@ export function MCPTestConsole({
               }`}
             >
               {message.role === "assistant" ? (
-                <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-pre:bg-background prose-pre:border prose-code:text-primary prose-code:before:content-none prose-code:after:content-none">
+                <div className="markdown-docs text-sm">
                   <ReactMarkdown>{getMessageText(message)}</ReactMarkdown>
                 </div>
               ) : (

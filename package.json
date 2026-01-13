@@ -27,6 +27,7 @@
     "@octokit/rest": "^22.0.1",
     "@radix-ui/react-avatar": "^1.1.11",
     "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-select": "^2.2.6",
     "@slack/web-api": "^7.13.0",
     "@types/pg": "^8.16.0",
     "ai": "^6.0.14",
