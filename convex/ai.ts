@@ -138,6 +138,7 @@ export const generateFromGitHubRepo = action({
       endpoints: analysis.endpoints,
       schemas: analysis.schemas,
       sourceType: "github_repo",
+      baseUrl: analysis.baseUrl,
     });
 
     // 5. Store draft
@@ -371,6 +372,7 @@ async function generateMCPCode(params: {
   endpoints: any[];
   schemas: any;
   sourceType: string;
+  baseUrl?: string | null;
 }): Promise<{ code: string; tools: any[] }> {
   // Use real Claude API to generate MCP server code
   const spec = {
@@ -378,6 +380,7 @@ async function generateMCPCode(params: {
       title: params.name,
       description: params.description,
     },
+    servers: params.baseUrl ? [{ url: params.baseUrl }] : [],
     paths: {},
     components: {
       schemas: params.schemas,
@@ -491,6 +494,7 @@ async function analyzeGitHubRepo(
 ): Promise<{
   endpoints: any[];
   schemas: any;
+  baseUrl: string | null;
 }> {
   // Supported file extensions for code analysis
   const codeExtensions = [
@@ -676,6 +680,7 @@ async function analyzeGitHubRepo(
   return {
     endpoints: result.endpoints || [],
     schemas: {},
+    baseUrl: result.baseUrl || null,
   };
 }
 

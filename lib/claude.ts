@@ -72,7 +72,7 @@ You will be given an OpenAPI specification and need to generate a complete MCP s
 Your task:
 1. Analyze the OpenAPI spec and identify all relevant endpoints
 2. Generate MCP tool definitions for each endpoint
-3. Implement proper error handling and validation
+3. Implement REAL API calls using fetch() to the actual API endpoints
 4. Use TypeScript with strict types
 5. Follow MCP protocol specifications exactly - using JSON-RPC 2.0
 
@@ -83,13 +83,21 @@ The server MUST implement JSON-RPC 2.0 protocol for MCP compatibility with clien
 - Required methods: initialize, initialized, tools/list, tools/call, ping
 - The X-API-Key header validates the user's identity (check for tools/list and tools/call)
 
+CRITICAL: REAL API IMPLEMENTATIONS
+- You MUST generate real fetch() calls to the actual API endpoints
+- Use the baseUrl from the OpenAPI spec (servers[0].url) as the base for all API calls
+- NEVER return placeholder text like "Result" - always make real HTTP requests
+- Handle authentication by accepting apiKey or token parameters in tools
+- Parse and return the actual API response data
+
 Generate clean, production-ready code that:
 - Uses Elysia framework for the HTTP server
 - Implements JSON-RPC 2.0 protocol for MCP
+- Makes REAL fetch() calls to the actual API
 - Validates X-API-Key header for authenticated methods
 - Includes comprehensive error handling
 - Has clear, descriptive tool names and descriptions
-- Returns MCP-formatted responses
+- Returns MCP-formatted responses with real data
 
 The code structure MUST be:
 \`\`\`typescript
@@ -98,6 +106,7 @@ import { Elysia, t } from "elysia";
 const PROTOCOL_VERSION = "2024-11-05";
 const SERVER_NAME = "API Name MCP Server";
 const SERVER_VERSION = "1.0.0";
+const BASE_URL = "https://api.example.com"; // From OpenAPI spec servers[0].url
 
 const TOOLS = [
   { name: "tool_name", description: "Description", inputSchema: { type: "object", properties: {}, required: [] } }
@@ -105,9 +114,37 @@ const TOOLS = [
 
 async function handleToolCall(name: string, args: any): Promise<any> {
   switch (name) {
-    case "tool_name":
-      // Implementation
-      return { content: [{ type: "text", text: "Result" }] };
+    case "list_items": {
+      // REAL implementation - make actual API call
+      const response = await fetch(\`\${BASE_URL}/items\`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          ...(args.apiKey && { "Authorization": \`Bearer \${args.apiKey}\` }),
+        },
+      });
+      if (!response.ok) {
+        throw new Error(\`API error: \${response.status} \${response.statusText}\`);
+      }
+      const data = await response.json();
+      return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    }
+    case "create_item": {
+      // REAL implementation with POST body
+      const response = await fetch(\`\${BASE_URL}/items\`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(args.apiKey && { "Authorization": \`Bearer \${args.apiKey}\` }),
+        },
+        body: JSON.stringify({ name: args.name, description: args.description }),
+      });
+      if (!response.ok) {
+        throw new Error(\`API error: \${response.status} \${response.statusText}\`);
+      }
+      const data = await response.json();
+      return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    }
     default:
       throw new Error(\`Unknown tool: \${name}\`);
   }
@@ -457,6 +494,15 @@ Look for:
 6. Request/response data structures
 7. Authentication requirements
 
+CRITICAL - FIND THE BASE URL:
+- Look for the production API URL in documentation, README files, config files, or code comments
+- Check for environment variables like API_URL, BASE_URL, API_ENDPOINT
+- Look for hardcoded URLs in fetch/request calls
+- Check package.json, setup.py, or similar for homepage/repository URLs
+- If this is a known service (like Daytona, Stripe, etc.), use their official API URL
+- Common patterns: "https://api.{service}.com", "https://{service}.io/api"
+- The baseUrl is ESSENTIAL for generating working API calls
+
 Handle different languages:
 - Go: Look for http.HandleFunc, gorilla/mux, gin, echo, chi routers
 - Python: Look for Flask, FastAPI, Django routes
@@ -469,7 +515,7 @@ IMPORTANT: If the code doesn't appear to be a web API, identify what kind of int
 Return as JSON (you MUST return valid JSON):
 {
   "name": "API/Service Name",
-  "baseUrl": "https://... or null if not identifiable",
+  "baseUrl": "https://api.example.com (REQUIRED - the actual production API URL)",
   "authMethod": "bearer|apikey|oauth|none|unknown",
   "description": "Brief description of what this service does",
   "endpoints": [
