@@ -233,23 +233,6 @@ export default function ApiKeysClient() {
           </pre>
         </div>
 
-        <div>
-          <h4 className="font-medium text-sm mb-2">3. MCP Hub Gateway</h4>
-          <p className="text-xs text-muted-foreground mb-2">
-            Use the MCP Hub gateway to access all your integrations:
-          </p>
-          <pre className="p-4 bg-zinc-900 text-zinc-100 rounded overflow-x-auto text-sm">
-            {`{
-  "mcpServers": {
-    "mcphub": {
-      "command": "npx",
-      "args": ["-y", "@mcphub/client", "--token", "YOUR_API_KEY_HERE"]
-    }
-  }
-}`}
-          </pre>
-        </div>
-
         <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
           <p className="text-xs text-amber-600 dark:text-amber-400 flex items-start gap-2">
             <svg
