@@ -125,18 +125,11 @@ export default function SkillsClient({ clerkId }: SkillsClientProps) {
       <div className="flex gap-1 mb-6 border-b">
         {[
           { id: "my-skills" as const, label: "My Skills" },
-          { id: "templates" as const, label: "Templates" },
           { id: "examples" as const, label: "Examples" },
         ].map((tab) => (
           <button
             key={tab.id}
-            onClick={() => {
-              if (tab.id === "templates") {
-                router.push("/dashboard/skills/templates");
-              } else {
-                setActiveTab(tab.id);
-              }
-            }}
+            onClick={() => setActiveTab(tab.id)}
             className={`px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === tab.id
                 ? "text-primary border-b-2 border-primary"
