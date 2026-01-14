@@ -44,8 +44,8 @@ export function DeployedServers() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold">MCP Servers</h2>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[1, 2].map((i) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
             <div key={i} className="p-4 border rounded-lg animate-pulse">
               <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
               <div className="h-3 bg-muted rounded w-full"></div>
@@ -97,7 +97,7 @@ export function DeployedServers() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {deployedServers.slice(0, 6).map((server: any) => (
           <Link
             key={server._id}

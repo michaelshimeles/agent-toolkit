@@ -28,7 +28,7 @@ export default function Dashboard() {
 
     return (
         <main className="min-h-screen px-6 md:px-12 lg:px-24 py-12">
-            <div className="max-w-5xl">
+            <div className="max-w-5xl mx-auto">
                 {/* Header */}
                 <div className="mb-12">
                     <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
