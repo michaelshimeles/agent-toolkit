@@ -86,15 +86,18 @@ export const deployToNewRepo = action({
         // 404 means repo doesn't exist, which is what we want
       }
 
-      // Create the repository
+      // Create the repository with auto_init to have an initial commit
       const { data: repo } = await octokit.repos.createForAuthenticatedUser({
         name: args.repoName,
         description: `Agent Skill: ${skill.description}`,
         private: args.isPrivate,
-        auto_init: false,
+        auto_init: true,
         has_issues: true,
         has_wiki: false,
       });
+
+      // Wait a moment for GitHub to initialize the repo
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Prepare all files to commit
       const filesToCreate: Array<{ path: string; content: string }> = [
@@ -132,6 +135,22 @@ export const deployToNewRepo = action({
         }
       }
 
+      // Get the default branch reference
+      const { data: ref } = await octokit.git.getRef({
+        owner,
+        repo: args.repoName,
+        ref: "heads/main",
+      });
+      const latestCommitSha = ref.object.sha;
+
+      // Get the base tree
+      const { data: latestCommit } = await octokit.git.getCommit({
+        owner,
+        repo: args.repoName,
+        commit_sha: latestCommitSha,
+      });
+      const baseTreeSha = latestCommit.tree.sha;
+
       // Create blobs for each file
       const blobs = await Promise.all(
         filesToCreate.map(async (file) => {
@@ -145,10 +164,11 @@ export const deployToNewRepo = action({
         })
       );
 
-      // Create tree
+      // Create tree with base_tree to preserve existing files
       const { data: tree } = await octokit.git.createTree({
         owner,
         repo: args.repoName,
+        base_tree: baseTreeSha,
         tree: blobs.map((blob) => ({
           path: blob.path,
           mode: "100644" as const,
@@ -157,19 +177,20 @@ export const deployToNewRepo = action({
         })),
       });
 
-      // Create commit
+      // Create commit with parent
       const { data: commit } = await octokit.git.createCommit({
         owner,
         repo: args.repoName,
-        message: `Initial skill setup\n\nCreated with MCP Hub Skill Builder`,
+        message: `Add skill files\n\nCreated with Toolkit Skill Builder`,
         tree: tree.sha,
+        parents: [latestCommitSha],
       });
 
       // Update main branch reference
-      await octokit.git.createRef({
+      await octokit.git.updateRef({
         owner,
         repo: args.repoName,
-        ref: "refs/heads/main",
+        ref: "heads/main",
         sha: commit.sha,
       });
 
