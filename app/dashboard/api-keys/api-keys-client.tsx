@@ -80,13 +80,14 @@ export default function ApiKeysClient() {
   };
 
   return (
-    <main className="flex flex-col h-screen p-12">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold">API Keys</h1>
-        <p className="text-sm text-muted-foreground mt-2">
-          Manage your MCP Hub API keys for authentication
-        </p>
-      </div>
+    <main className="min-h-screen px-6 md:px-12 lg:px-24 py-12">
+      <div className="max-w-5xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-2xl font-semibold tracking-tight">API Keys</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Manage your API keys for authentication
+          </p>
+        </div>
 
       {/* Created Key Modal */}
       {createdKey && (
@@ -272,6 +273,7 @@ export default function ApiKeysClient() {
             </span>
           </p>
         </div>
+      </div>
       </div>
     </main>
   );

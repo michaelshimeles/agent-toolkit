@@ -25,13 +25,14 @@ export default function UsageClient({ clerkId }: UsageClientProps) {
   );
 
   return (
-    <main className="flex flex-col h-screen p-12 overflow-y-auto">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold">Usage Analytics</h1>
-        <p className="text-sm text-muted-foreground mt-2">
-          Monitor your API usage and performance metrics
-        </p>
-      </div>
+    <main className="min-h-screen px-6 md:px-12 lg:px-24 py-12">
+      <div className="max-w-5xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-2xl font-semibold tracking-tight">Usage</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Monitor your API usage and performance metrics
+          </p>
+        </div>
 
       {/* Stats Cards */}
       {stats === undefined ? (
@@ -193,6 +194,7 @@ export default function UsageClient({ clerkId }: UsageClientProps) {
           </div>
         </>
       )}
+      </div>
     </main>
   );
 }
