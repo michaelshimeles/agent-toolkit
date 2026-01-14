@@ -50,7 +50,7 @@ export function ApiKeyDialog({
     userId && serviceName ? { userId, serviceName } : "skip"
   );
 
-  const storeKey = useAction(api.builder.storeExternalApiKey);
+  const storeKey = useAction(api.builderActions.storeExternalApiKey);
 
   const handleSaveKey = async () => {
     if (!apiKey.trim()) {

@@ -217,4 +217,79 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_server", ["serverId"])
     .index("by_user_and_service", ["userId", "serviceName"]),
+
+  // Agent Skills for Claude Code
+  skills: defineTable({
+    userId: v.id("users"),
+    name: v.string(), // lowercase, hyphens only, max 64 chars
+    description: v.string(), // max 1024 chars
+    status: v.union(
+      v.literal("draft"),
+      v.literal("deployed"),
+      v.literal("archived")
+    ),
+    files: v.object({
+      skillMd: v.string(), // SKILL.md content
+      scripts: v.optional(v.array(v.object({
+        name: v.string(),
+        content: v.string(),
+        language: v.string(), // "python", "bash", "javascript"
+      }))),
+      references: v.optional(v.array(v.object({
+        name: v.string(),
+        content: v.string(),
+      }))),
+      assets: v.optional(v.array(v.object({
+        name: v.string(),
+        content: v.string(),
+        type: v.string(), // MIME type or file extension
+      }))),
+    }),
+    // GitHub deployment info
+    githubRepo: v.optional(v.string()), // "owner/repo"
+    githubUrl: v.optional(v.string()), // Full URL to the skill
+    deployedAt: v.optional(v.number()),
+    // Metadata from SKILL.md frontmatter
+    metadata: v.object({
+      license: v.optional(v.string()),
+      version: v.string(),
+      author: v.optional(v.string()),
+      compatibility: v.optional(v.string()),
+      allowedTools: v.optional(v.array(v.string())),
+    }),
+    // Template reference if created from template
+    templateId: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_status", ["status"])
+    .index("by_name", ["userId", "name"]),
+
+  // Skill version history
+  skillVersions: defineTable({
+    skillId: v.id("skills"),
+    version: v.number(),
+    files: v.object({
+      skillMd: v.string(),
+      scripts: v.optional(v.array(v.object({
+        name: v.string(),
+        content: v.string(),
+        language: v.string(),
+      }))),
+      references: v.optional(v.array(v.object({
+        name: v.string(),
+        content: v.string(),
+      }))),
+      assets: v.optional(v.array(v.object({
+        name: v.string(),
+        content: v.string(),
+        type: v.string(),
+      }))),
+    }),
+    changeDescription: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_skill", ["skillId"])
+    .index("by_skill_version", ["skillId", "version"]),
 });

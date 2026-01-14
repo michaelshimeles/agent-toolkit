@@ -1,19 +1,20 @@
 import Link from "next/link";
 import { DeployedServers } from "./deployed-servers";
+import { DeployedSkills } from "./deployed-skills";
 
 export default function Dashboard() {
     const dashboardLinks = [
         {
-            title: "AI Builder",
-            description: "Generate MCP servers from APIs, docs, or GitHub repos",
+            title: "MCP Servers",
+            description: "Build and deploy MCP servers from APIs, docs, or repos",
             href: "/dashboard/builder",
-            icon: "🤖",
+            icon: "🔌",
         },
         {
-            title: "Integrations",
-            description: "Connect and manage your integrations",
-            href: "/dashboard/integrations",
-            icon: "🔌",
+            title: "Skills",
+            description: "Create and deploy Agent Skills for Claude Code",
+            href: "/dashboard/skills",
+            icon: "✨",
         },
         {
             title: "API Keys",
@@ -34,7 +35,7 @@ export default function Dashboard() {
             <div className="mb-8">
                 <h1 className="text-2xl font-bold">Dashboard</h1>
                 <p className="text-sm text-muted-foreground mt-2">
-                    Manage your MCP Hub integrations, API keys, and usage.
+                    Build MCP servers, create skills, and manage your tools.
                 </p>
             </div>
 
@@ -55,8 +56,11 @@ export default function Dashboard() {
                 ))}
             </div>
 
-            {/* Deployed Servers Section */}
+            {/* MCP Servers Section */}
             <DeployedServers />
+
+            {/* Skills Section */}
+            <DeployedSkills />
         </main>
     );
 }

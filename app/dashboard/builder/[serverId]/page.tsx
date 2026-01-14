@@ -40,7 +40,7 @@ export default function ServerDetailPage() {
   );
 
   // Deploy action
-  const deployServer = useAction(api.ai.deployServer);
+  const deployServer = useAction(api.aiActions.deployServer);
 
   // Initialize local state from server data
   useEffect(() => {

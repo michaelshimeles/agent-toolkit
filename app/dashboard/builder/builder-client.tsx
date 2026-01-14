@@ -57,9 +57,9 @@ export default function BuilderClient({ clerkId }: BuilderClientProps) {
   );
 
   // Convex actions for generating MCP servers
-  const generateFromOpenAPI = useAction(api.ai.generateFromOpenAPI);
-  const generateFromDocsUrl = useAction(api.ai.generateFromDocsUrl);
-  const generateFromGitHubRepo = useAction(api.ai.generateFromGitHubRepo);
+  const generateFromOpenAPI = useAction(api.aiActions.generateFromOpenAPI);
+  const generateFromDocsUrl = useAction(api.aiActions.generateFromDocsUrl);
+  const generateFromGitHubRepo = useAction(api.aiActions.generateFromGitHubRepo);
   const deleteServer = useMutation(api.builder.deleteServer);
 
   // State for delete dialog

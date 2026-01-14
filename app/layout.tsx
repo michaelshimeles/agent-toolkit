@@ -19,8 +19,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MCP App Store",
-  description: "Discover and install MCP apps to enhance your workflow.",
+  title: "Toolkit",
+  description: "Build AI agent skills and connect integrations through MCP.",
 };
 
 export default function RootLayout({
