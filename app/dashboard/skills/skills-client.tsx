@@ -23,10 +23,7 @@ interface SkillsClientProps {
   clerkId: string;
 }
 
-type TabType = "my-skills" | "templates" | "examples";
-
 export default function SkillsClient({ clerkId }: SkillsClientProps) {
-  const [activeTab, setActiveTab] = useState<TabType>("my-skills");
   const router = useRouter();
   const { user, isLoaded } = useUser();
 
@@ -121,30 +118,9 @@ export default function SkillsClient({ clerkId }: SkillsClientProps) {
           </button>
         </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 mb-6 border-b">
-        {[
-          { id: "my-skills" as const, label: "My Skills" },
-          { id: "examples" as const, label: "Examples" },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
-              activeTab === tab.id
-                ? "text-primary border-b-2 border-primary"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
 
       {/* Content */}
-      {activeTab === "my-skills" && (
-        <>
-          {skills === undefined ? (
+      {skills === undefined ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <LoadingCard />
               <LoadingCard />
@@ -298,36 +274,6 @@ export default function SkillsClient({ clerkId }: SkillsClientProps) {
                 </div>
               ))}
             </div>
-          )}
-        </>
-      )}
-
-      {activeTab === "examples" && (
-        <div className="flex flex-col items-center justify-center py-16 border border-dashed rounded-lg">
-          <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="text-muted-foreground"
-            >
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-          </div>
-          <h3 className="font-semibold mb-2">Example Gallery Coming Soon</h3>
-          <p className="text-sm text-muted-foreground text-center max-w-sm">
-            Browse community-contributed skills and official examples from
-            Anthropic.
-          </p>
-        </div>
       )}
 
       {/* Delete Confirmation Dialog */}
