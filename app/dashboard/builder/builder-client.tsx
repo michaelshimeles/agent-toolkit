@@ -158,6 +158,26 @@ export default function BuilderClient({ clerkId }: BuilderClientProps) {
   return (
     <main className="flex flex-col h-screen p-12">
       <div className="mb-8">
+        <button
+          onClick={() => router.push("/dashboard/builder")}
+          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M19 12H5" />
+            <path d="M12 19l-7-7 7-7" />
+          </svg>
+          Back to MCP Servers
+        </button>
         <h1 className="text-2xl font-bold">AI Builder</h1>
         <p className="text-sm text-muted-foreground mt-2">
           Create MCP servers from any API automatically
