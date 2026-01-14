@@ -33,10 +33,10 @@ export function CodeEditor({
 
     // Configure Monaco editor options
     editor.updateOptions({
-      minimap: { enabled: true },
+      minimap: { enabled: false },
       fontSize: 14,
       lineNumbers: "on",
-      rulers: [80],
+      rulers: [],
       wordWrap: "on",
       scrollBeyondLastLine: false,
       automaticLayout: true,
@@ -84,12 +84,14 @@ export function CodeEditor({
         onMount={handleEditorDidMount}
         options={{
           readOnly,
-          minimap: { enabled: true },
+          minimap: { enabled: false },
           fontSize: 14,
           lineNumbers: "on",
+          rulers: [],
           scrollBeyondLastLine: false,
           automaticLayout: true,
           tabSize: 2,
+          wordWrap: "on",
         }}
         loading={
           <div className="flex items-center justify-center h-full bg-gray-900 text-gray-300">
