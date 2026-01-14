@@ -11,30 +11,35 @@ export default async function BuilderPage() {
 
   return (
     <main className="min-h-screen px-6 md:px-12 lg:px-24 py-12">
-      <div className="max-w-3xl">
-        {/* Back link */}
-        <Link
-          href="/dashboard"
-          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-8"
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path
-              d="M10 12L6 8L10 4"
+      <div className="max-w-5xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">MCP</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Create from templates or generate with AI
+            </p>
+          </div>
+          <Link
+            href="/dashboard/builder/new"
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 flex items-center gap-2"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
               stroke="currentColor"
-              strokeWidth="1.5"
+              strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
-            />
-          </svg>
-          Dashboard
-        </Link>
-
-        {/* Header */}
-        <div className="mb-12">
-          <h1 className="text-2xl font-semibold tracking-tight">MCP Servers</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Create from templates or generate with AI
-          </p>
+            >
+              <path d="M12 5v14" />
+              <path d="M5 12h14" />
+            </svg>
+            New Server
+          </Link>
         </div>
 
         {/* Options */}

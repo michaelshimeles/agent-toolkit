@@ -42,7 +42,7 @@ export function DeployedServers() {
     return (
       <section>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold">MCP Servers</h2>
+          <h2 className="text-sm font-semibold">MCP</h2>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => (
@@ -60,7 +60,7 @@ export function DeployedServers() {
     return (
       <section>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold">MCP Servers</h2>
+          <h2 className="text-sm font-semibold">MCP</h2>
           <Link
             href="/dashboard/builder"
             className="text-xs text-muted-foreground hover:text-foreground"
@@ -84,7 +84,7 @@ export function DeployedServers() {
     <section>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-semibold">
-          MCP Servers
+          MCP
           <span className="ml-2 text-muted-foreground font-normal">
             {deployedServers.length}
           </span>

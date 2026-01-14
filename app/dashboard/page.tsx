@@ -5,7 +5,7 @@ import { DeployedSkills } from "./deployed-skills";
 export default function Dashboard() {
     const dashboardLinks = [
         {
-            title: "MCP Servers",
+            title: "MCP",
             description: "Build and deploy MCP servers",
             href: "/dashboard/builder",
         },
