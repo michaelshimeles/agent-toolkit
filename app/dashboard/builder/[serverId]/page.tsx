@@ -628,7 +628,7 @@ export default function ServerDetailPage() {
                   <button
                     onClick={handleDeploy}
                     disabled={isDeploying}
-                    className="w-full bg-primary text-primary-foreground py-3 px-6 rounded-lg font-semibold hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed transition-colors"
+                    className="w-full bg-primary text-primary-foreground py-2 px-4 rounded-lg font-medium hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed transition-colors"
                   >
                     {isDeploying ? "Deploying..." : "Deploy Server →"}
                   </button>

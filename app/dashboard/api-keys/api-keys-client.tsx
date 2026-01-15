@@ -132,7 +132,7 @@ export default function ApiKeysClient() {
           <button
             onClick={createKey}
             disabled={creatingKey || !newKeyName.trim()}
-            className="px-6 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed transition-colors"
+            className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed transition-colors"
           >
             {creatingKey ? "Creating..." : "Create Key"}
           </button>
