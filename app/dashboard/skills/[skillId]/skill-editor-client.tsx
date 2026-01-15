@@ -26,6 +26,7 @@ interface SkillEditorClientProps {
 
 type PreviewMode = "simulated" | "files";
 type SelectedFile = "SKILL.md" | { type: "script" | "reference" | "asset"; index: number };
+type NewFileType = "script" | "reference";
 
 export default function SkillEditorClient({
   clerkId,
@@ -44,8 +45,25 @@ export default function SkillEditorClient({
   const [githubToken, setGithubToken] = useState("");
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-  // Local state for editing
+  // Rename state
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState("");
+  const [renameError, setRenameError] = useState<string | null>(null);
+
+  // New file dialog state
+  const [showNewFileDialog, setShowNewFileDialog] = useState(false);
+  const [newFileType, setNewFileType] = useState<NewFileType>("script");
+  const [newFileName, setNewFileName] = useState("");
+  const [newFileLanguage, setNewFileLanguage] = useState("python");
+
+  // Delete file dialog state
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [fileToDelete, setFileToDelete] = useState<SelectedFile | null>(null);
+
+  // Local state for editing - now tracks all files
   const [editedSkillMd, setEditedSkillMd] = useState<string | null>(null);
+  const [editedScripts, setEditedScripts] = useState<Map<number, string>>(new Map());
+  const [editedReferences, setEditedReferences] = useState<Map<number, string>>(new Map());
 
   const router = useRouter();
   const { user, isLoaded } = useUser();
@@ -89,23 +107,144 @@ export default function SkillEditorClient({
   }, [skill, editedSkillMd]);
 
   const handleSave = async () => {
-    if (!skill || !editedSkillMd) return;
+    if (!skill) return;
 
     setIsSaving(true);
     try {
+      // Build updated scripts array
+      const updatedScripts = skill.files.scripts?.map((script, index) => {
+        const edited = editedScripts.get(index);
+        return edited !== undefined ? { ...script, content: edited } : script;
+      });
+
+      // Build updated references array
+      const updatedReferences = skill.files.references?.map((ref, index) => {
+        const edited = editedReferences.get(index);
+        return edited !== undefined ? { ...ref, content: edited } : ref;
+      });
+
       await updateSkill({
         skillId: skill._id,
         files: {
           ...skill.files,
-          skillMd: editedSkillMd,
+          skillMd: editedSkillMd || skill.files.skillMd,
+          scripts: updatedScripts,
+          references: updatedReferences,
         },
         changeDescription: "Manual edit",
       });
       setHasUnsavedChanges(false);
+      setEditedScripts(new Map());
+      setEditedReferences(new Map());
     } catch (err) {
       console.error("Failed to save:", err);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Rename handler
+  const handleRename = async () => {
+    if (!skill || !editedName.trim()) {
+      setIsEditingName(false);
+      return;
+    }
+
+    const newName = editedName.trim().toLowerCase();
+
+    // Validate name format
+    if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(newName)) {
+      setRenameError("Name must be lowercase letters, numbers, and hyphens only");
+      return;
+    }
+    if (newName.length > 64) {
+      setRenameError("Name must be 64 characters or less");
+      return;
+    }
+
+    try {
+      await updateSkill({
+        skillId: skill._id,
+        name: newName,
+      });
+      setIsEditingName(false);
+      setRenameError(null);
+    } catch (err: any) {
+      setRenameError(err.message || "Failed to rename");
+    }
+  };
+
+  // New file handler
+  const handleCreateFile = async () => {
+    if (!skill || !newFileName.trim()) return;
+
+    const fileName = newFileName.trim();
+
+    // Validate filename
+    if (!/^[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+$/.test(fileName)) {
+      return; // Invalid filename
+    }
+
+    const newFiles = { ...skill.files };
+
+    if (newFileType === "script") {
+      const newScript = {
+        name: fileName,
+        content: `# ${fileName}\n# Add your code here\n`,
+        language: newFileLanguage,
+      };
+      newFiles.scripts = [...(newFiles.scripts || []), newScript];
+    } else {
+      const newRef = {
+        name: fileName,
+        content: `# ${fileName}\n\nAdd your reference content here.\n`,
+      };
+      newFiles.references = [...(newFiles.references || []), newRef];
+    }
+
+    try {
+      await updateSkill({
+        skillId: skill._id,
+        files: newFiles,
+        changeDescription: `Added ${newFileType}: ${fileName}`,
+      });
+      setShowNewFileDialog(false);
+      setNewFileName("");
+
+      // Select the new file
+      if (newFileType === "script") {
+        setSelectedFile({ type: "script", index: (newFiles.scripts?.length || 1) - 1 });
+      } else {
+        setSelectedFile({ type: "reference", index: (newFiles.references?.length || 1) - 1 });
+      }
+    } catch (err) {
+      console.error("Failed to create file:", err);
+    }
+  };
+
+  // Delete file handler
+  const handleDeleteFile = async () => {
+    if (!skill || !fileToDelete || fileToDelete === "SKILL.md") return;
+
+    const newFiles = { ...skill.files };
+
+    if (fileToDelete.type === "script") {
+      newFiles.scripts = skill.files.scripts?.filter((_, i) => i !== fileToDelete.index);
+    } else if (fileToDelete.type === "reference") {
+      newFiles.references = skill.files.references?.filter((_, i) => i !== fileToDelete.index);
+    }
+
+    try {
+      await updateSkill({
+        skillId: skill._id,
+        files: newFiles,
+        changeDescription: `Deleted file`,
+      });
+      setShowDeleteDialog(false);
+      setFileToDelete(null);
+      setSelectedFile("SKILL.md");
+    } catch (err) {
+      console.error("Failed to delete file:", err);
     }
   };
 
@@ -166,9 +305,21 @@ export default function SkillEditorClient({
   };
 
   const handleEditorChange = (value: string | undefined) => {
-    if (value !== undefined) {
+    if (value === undefined) return;
+
+    if (selectedFile === "SKILL.md") {
       setEditedSkillMd(value);
       setHasUnsavedChanges(value !== skill?.files.skillMd);
+    } else if (selectedFile.type === "script") {
+      const newEditedScripts = new Map(editedScripts);
+      newEditedScripts.set(selectedFile.index, value);
+      setEditedScripts(newEditedScripts);
+      setHasUnsavedChanges(true);
+    } else if (selectedFile.type === "reference") {
+      const newEditedRefs = new Map(editedReferences);
+      newEditedRefs.set(selectedFile.index, value);
+      setEditedReferences(newEditedRefs);
+      setHasUnsavedChanges(true);
     }
   };
 
@@ -197,9 +348,9 @@ export default function SkillEditorClient({
   const currentContent = selectedFile === "SKILL.md"
     ? editedSkillMd || skill.files.skillMd
     : selectedFile.type === "script"
-      ? skill.files.scripts?.[selectedFile.index]?.content || ""
+      ? editedScripts.get(selectedFile.index) ?? skill.files.scripts?.[selectedFile.index]?.content ?? ""
       : selectedFile.type === "reference"
-        ? skill.files.references?.[selectedFile.index]?.content || ""
+        ? editedReferences.get(selectedFile.index) ?? skill.files.references?.[selectedFile.index]?.content ?? ""
         : "";
 
   const currentLanguage = selectedFile === "SKILL.md"
@@ -234,7 +385,57 @@ export default function SkillEditorClient({
             Back
           </button>
           <div>
-            <h1 className="text-lg font-semibold">{skill.name}</h1>
+            <div className="flex items-center gap-2">
+              {isEditingName ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    value={editedName}
+                    onChange={(e) => setEditedName(e.target.value)}
+                    onBlur={handleRename}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleRename();
+                      if (e.key === "Escape") {
+                        setIsEditingName(false);
+                        setRenameError(null);
+                      }
+                    }}
+                    className="text-lg font-semibold bg-transparent border-b border-primary focus:outline-none w-48"
+                    autoFocus
+                    placeholder="skill-name"
+                  />
+                  {renameError && (
+                    <span className="text-xs text-red-500">{renameError}</span>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <h1 className="text-lg font-semibold">{skill.name}</h1>
+                  <button
+                    onClick={() => {
+                      setEditedName(skill.name);
+                      setIsEditingName(true);
+                    }}
+                    className="text-muted-foreground hover:text-foreground"
+                    title="Rename skill"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                      <path d="m15 5 4 4" />
+                    </svg>
+                  </button>
+                </>
+              )}
+            </div>
             <span
               className={`text-xs px-2 py-0.5 rounded ${
                 skill.status === "deployed"
@@ -298,8 +499,28 @@ export default function SkillEditorClient({
       <div className="flex flex-1 overflow-hidden">
         {/* File Tree */}
         <div className="w-64 border-r flex flex-col">
-          <div className="p-4 border-b">
+          <div className="p-4 border-b flex items-center justify-between">
             <h2 className="text-sm font-semibold">Files</h2>
+            <button
+              onClick={() => setShowNewFileDialog(true)}
+              className="text-muted-foreground hover:text-foreground"
+              title="Add new file"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M12 5v14" />
+                <path d="M5 12h14" />
+              </svg>
+            </button>
           </div>
           <div className="flex-1 overflow-auto p-2">
             {/* Skill folder */}
@@ -367,12 +588,9 @@ export default function SkillEditorClient({
                     scripts
                   </div>
                   {skill.files.scripts.map((script, index) => (
-                    <button
+                    <div
                       key={`script-${index}`}
-                      onClick={() =>
-                        setSelectedFile({ type: "script", index })
-                      }
-                      className={`w-full flex items-center gap-2 px-6 py-1 text-sm rounded ${
+                      className={`group w-full flex items-center justify-between px-6 py-1 text-sm rounded ${
                         typeof selectedFile !== "string" &&
                         selectedFile.type === "script" &&
                         selectedFile.index === index
@@ -380,22 +598,54 @@ export default function SkillEditorClient({
                           : "hover:bg-accent"
                       }`}
                     >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
+                      <button
+                        onClick={() =>
+                          setSelectedFile({ type: "script", index })
+                        }
+                        className="flex items-center gap-2 flex-1 text-left"
                       >
-                        <polyline points="16 18 22 12 16 6" />
-                        <polyline points="8 6 2 12 8 18" />
-                      </svg>
-                      {script.name}
-                    </button>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <polyline points="16 18 22 12 16 6" />
+                          <polyline points="8 6 2 12 8 18" />
+                        </svg>
+                        {script.name}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setFileToDelete({ type: "script", index });
+                          setShowDeleteDialog(true);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500"
+                        title="Delete file"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M3 6h18" />
+                          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                        </svg>
+                      </button>
+                    </div>
                   ))}
                 </>
               )}
@@ -420,12 +670,9 @@ export default function SkillEditorClient({
                     references
                   </div>
                   {skill.files.references.map((ref, index) => (
-                    <button
+                    <div
                       key={`ref-${index}`}
-                      onClick={() =>
-                        setSelectedFile({ type: "reference", index })
-                      }
-                      className={`w-full flex items-center gap-2 px-6 py-1 text-sm rounded ${
+                      className={`group w-full flex items-center justify-between px-6 py-1 text-sm rounded ${
                         typeof selectedFile !== "string" &&
                         selectedFile.type === "reference" &&
                         selectedFile.index === index
@@ -433,22 +680,54 @@ export default function SkillEditorClient({
                           : "hover:bg-accent"
                       }`}
                     >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
+                      <button
+                        onClick={() =>
+                          setSelectedFile({ type: "reference", index })
+                        }
+                        className="flex items-center gap-2 flex-1 text-left"
                       >
-                        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-                        <polyline points="14 2 14 8 20 8" />
-                      </svg>
-                      {ref.name}
-                    </button>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                          <polyline points="14 2 14 8 20 8" />
+                        </svg>
+                        {ref.name}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setFileToDelete({ type: "reference", index });
+                          setShowDeleteDialog(true);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500"
+                        title="Delete file"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M3 6h18" />
+                          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                        </svg>
+                      </button>
+                    </div>
                   ))}
                 </>
               )}
@@ -479,9 +758,9 @@ export default function SkillEditorClient({
           <div className="flex-1 overflow-hidden">
             <CodeEditor
               value={currentContent}
-              onChange={selectedFile === "SKILL.md" ? handleEditorChange : undefined}
+              onChange={handleEditorChange}
               language={currentLanguage}
-              readOnly={selectedFile !== "SKILL.md"}
+              readOnly={false}
               height="100%"
             />
           </div>
@@ -788,6 +1067,114 @@ ${skill.files.scripts?.length ? `├── scripts/\n${skill.files.scripts.map((
               }}
             >
               {isDeploying ? "Deploying..." : "Deploy"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* New File Dialog */}
+      <AlertDialog open={showNewFileDialog} onOpenChange={setShowNewFileDialog}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Create New File</AlertDialogTitle>
+            <AlertDialogDescription>
+              Add a new script or reference file to your skill.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">File Type</label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="fileType"
+                    value="script"
+                    checked={newFileType === "script"}
+                    onChange={() => setNewFileType("script")}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm">Script</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="fileType"
+                    value="reference"
+                    checked={newFileType === "reference"}
+                    onChange={() => setNewFileType("reference")}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm">Reference</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">File Name</label>
+              <input
+                type="text"
+                value={newFileName}
+                onChange={(e) => setNewFileName(e.target.value)}
+                placeholder={newFileType === "script" ? "script.py" : "REFERENCE.md"}
+                className="w-full px-3 py-2 text-sm border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary font-mono"
+              />
+              <p className="text-xs text-muted-foreground">
+                Include the file extension (e.g., .py, .js, .sh, .md)
+              </p>
+            </div>
+
+            {newFileType === "script" && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Language</label>
+                <select
+                  value={newFileLanguage}
+                  onChange={(e) => setNewFileLanguage(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="python">Python</option>
+                  <option value="javascript">JavaScript</option>
+                  <option value="bash">Bash</option>
+                  <option value="typescript">TypeScript</option>
+                </select>
+              </div>
+            )}
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!newFileName.trim()}
+              onClick={(e) => {
+                e.preventDefault();
+                handleCreateFile();
+              }}
+            >
+              Create File
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete File Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete File</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this file? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setFileToDelete(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteFile}
+              className="bg-red-500 hover:bg-red-600"
+            >
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

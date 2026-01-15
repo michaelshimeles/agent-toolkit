@@ -162,17 +162,52 @@ export const generateSkill = action({
     userId: v.id("users"),
     description: v.string(),
     templateId: v.optional(v.string()),
+    // Template data passed from client when using a template
+    templateData: v.optional(v.object({
+      skillMd: v.string(),
+      scripts: v.optional(v.array(v.object({
+        name: v.string(),
+        content: v.string(),
+        language: v.string(),
+      }))),
+      references: v.optional(v.array(v.object({
+        name: v.string(),
+        content: v.string(),
+      }))),
+    })),
   },
   handler: async (ctx, args): Promise<{ skillId: string }> => {
+    // Check if using a template with provided data - use it directly
+    if (args.templateId && args.templateData) {
+      // Extract name from the templateId
+      const name = args.templateId;
+
+      // Create the skill directly from template data
+      const skillId = await ctx.runMutation(api.skills.createSkill, {
+        userId: args.userId,
+        name: name,
+        description: args.description,
+        files: {
+          skillMd: args.templateData.skillMd,
+          scripts: args.templateData.scripts || [],
+          references: args.templateData.references || [],
+          assets: [],
+        },
+        metadata: {
+          license: "MIT",
+          version: "1.0",
+        },
+        templateId: args.templateId,
+      });
+
+      return { skillId: skillId.toString() };
+    }
+
+    // No template data - generate with AI
     const client = getClaudeClient();
 
     // Build user prompt
-    let userPrompt = SKILL_GENERATION_USER.replace("{DESCRIPTION}", args.description);
-
-    // If using a template, include it as context
-    if (args.templateId) {
-      userPrompt += `\n\nNote: Base this on a template style but customize based on the description above.`;
-    }
+    const userPrompt = SKILL_GENERATION_USER.replace("{DESCRIPTION}", args.description);
 
     const response = await client.messages.create({
       model: "claude-sonnet-4-20250514",

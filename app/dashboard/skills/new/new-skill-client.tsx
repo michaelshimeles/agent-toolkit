@@ -67,13 +67,30 @@ export default function NewSkillClient({ clerkId }: NewSkillClientProps) {
 
     setIsGenerating(true);
     setError(null);
-    setGenerationStatus("Generating your skill with AI...");
+
+    // Get template data if a template is selected
+    const template = selectedTemplate
+      ? SKILL_TEMPLATES.find((t) => t.id === selectedTemplate)
+      : null;
+
+    setGenerationStatus(
+      template
+        ? "Creating skill from template..."
+        : "Generating your skill with AI..."
+    );
 
     try {
       const result = await generateSkill({
         userId: convexUser._id,
         description: description.trim(),
         templateId: selectedTemplate || undefined,
+        templateData: template
+          ? {
+              skillMd: template.skillMd,
+              scripts: template.scripts,
+              references: template.references,
+            }
+          : undefined,
       });
 
       setGenerationStatus("Skill created successfully!");
@@ -98,11 +115,9 @@ export default function NewSkillClient({ clerkId }: NewSkillClientProps) {
     if (template) {
       setSelectedTemplate(templateId);
       // Pre-fill with template description as starting point
-      if (!description) {
-        setDescription(
-          `Create a ${template.name.toLowerCase()} skill that ${template.description.toLowerCase()}`
-        );
-      }
+      setDescription(
+        `Create a ${template.name.toLowerCase()} skill that ${template.description.toLowerCase()}`
+      );
     }
   };
 
