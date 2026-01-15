@@ -364,7 +364,7 @@ export default function SkillEditorClient({
       {/* Header */}
       <div className="flex items-center border-b">
         {/* Left section - matches file tree width */}
-        <div className="w-64 px-4 py-4 flex items-center gap-4 border-r">
+        <div className="w-64 px-4 py-2 flex items-center gap-4 border-r">
           <button
             onClick={() => router.push("/dashboard/skills")}
             className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
@@ -388,7 +388,7 @@ export default function SkillEditorClient({
         </div>
 
         {/* Middle section - skill name and status */}
-        <div className="flex-1 px-4 py-4 flex items-center gap-4">
+        <div className="flex-1 px-4 py-2 flex items-center gap-4">
           <div>
             <div className="flex items-center gap-2">
               {isEditingName ? (
@@ -456,7 +456,7 @@ export default function SkillEditorClient({
         </div>
 
         {/* Right section - matches preview sidebar width */}
-        <div className="w-96 px-4 py-4 flex items-center justify-end gap-2 border-l">
+        <div className="w-96 px-4 py-2 flex items-center justify-end gap-2 border-l">
           {hasUnsavedChanges && (
             <span className="text-xs text-yellow-500">Unsaved changes</span>
           )}
