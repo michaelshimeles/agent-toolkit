@@ -7,7 +7,6 @@ import { ThemeToggle } from "../theme-toggle";
 export default function NavbarClient() {
     return (
         <div className="flex items-center gap-2">
-            <ThemeToggle />
             <ClerkLoading>
                 {/* Skeleton while Clerk loads */}
                 <div className="w-24 h-9 bg-muted rounded-md animate-pulse" />
@@ -16,6 +15,7 @@ export default function NavbarClient() {
 
             <ClerkLoaded>
                 <SignedOut>
+                    <ThemeToggle />
                     <Button variant="outline">
                         <Link href="/sign-in">
                             Sign In
@@ -28,6 +28,7 @@ export default function NavbarClient() {
                             Dashboard
                         </Link>
                     </Button>
+                    <ThemeToggle />
                     <UserButton afterSignOutUrl="/" />
                 </SignedIn>
             </ClerkLoaded>
