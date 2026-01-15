@@ -98,7 +98,7 @@ export default function SkillsClient({ clerkId }: SkillsClientProps) {
           </div>
           <button
             onClick={() => router.push("/dashboard/skills/new")}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 flex items-center gap-2"
+            className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 flex items-center gap-2"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -153,7 +153,7 @@ export default function SkillsClient({ clerkId }: SkillsClientProps) {
               </p>
               <button
                 onClick={() => router.push("/dashboard/skills/new")}
-                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90"
+                className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
               >
                 Create Your First Skill
               </button>
