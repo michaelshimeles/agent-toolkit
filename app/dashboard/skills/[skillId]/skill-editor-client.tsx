@@ -463,7 +463,7 @@ export default function SkillEditorClient({
           <button
             onClick={handleSave}
             disabled={isSaving || !hasUnsavedChanges}
-            className="px-4 py-2 text-sm border rounded-lg hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 text-sm border rounded-lg hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSaving ? "Saving..." : "Save"}
           </button>
@@ -472,7 +472,7 @@ export default function SkillEditorClient({
               href={skill.githubUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-4 py-2 text-sm border rounded-lg hover:bg-accent flex items-center gap-2"
+              className="px-3 py-1.5 text-sm border rounded-lg hover:bg-accent flex items-center gap-2"
             >
               View on GitHub
               <svg
@@ -494,7 +494,7 @@ export default function SkillEditorClient({
           ) : null}
           <button
             onClick={handleDeploy}
-            className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
+            className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
           >
             {skill.status === "deployed" ? "Redeploy" : "Deploy to GitHub"}
           </button>
