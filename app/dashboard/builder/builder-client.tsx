@@ -243,7 +243,7 @@ export default function BuilderClient({ clerkId }: BuilderClientProps) {
         <button
           onClick={handleAnalyze}
           disabled={isAnalyzing || !sourceInput.trim() || convexUser === undefined}
-          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
         >
           {isAnalyzing && (
             <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
