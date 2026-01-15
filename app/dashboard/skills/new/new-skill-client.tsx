@@ -122,7 +122,7 @@ export default function NewSkillClient({ clerkId }: NewSkillClientProps) {
   };
 
   return (
-    <main className="flex flex-col h-screen p-12">
+    <main className="flex flex-col h-screen px-6 py-8">
       <div className="mb-8">
         <button
           onClick={() => router.push("/dashboard/skills")}

@@ -22,7 +22,7 @@ export default function LogsClient({ clerkId }: LogsClientProps) {
   );
 
   return (
-    <main className="flex flex-col h-screen p-12">
+    <main className="flex flex-col h-screen px-6 py-8">
       <div className="mb-8">
         <h1 className="text-2xl font-bold">Activity Logs</h1>
         <p className="text-sm text-muted-foreground mt-2">

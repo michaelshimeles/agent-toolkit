@@ -335,7 +335,7 @@ export default function SkillEditorClient({
 
   if (!skill) {
     return (
-      <main className="flex flex-col h-screen p-12">
+      <main className="flex flex-col h-screen px-6 py-8">
         <div className="flex items-center justify-center h-full">
           <div className="animate-pulse text-muted-foreground">
             Loading skill...

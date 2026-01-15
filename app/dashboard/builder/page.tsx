@@ -10,7 +10,7 @@ export default async function BuilderPage() {
   }
 
   return (
-    <main className="min-h-screen px-6 md:px-12 lg:px-24 py-12">
+    <main className="min-h-screen px-6 py-8">
       <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
