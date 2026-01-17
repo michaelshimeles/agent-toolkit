@@ -25,10 +25,17 @@ function getClaudeClient(): Anthropic {
 function parseClaudeJSON<T>(text: string): T {
   let jsonStr = text.trim();
 
-  // Remove markdown code blocks
-  const codeBlockMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  // Remove markdown code blocks (handles ```json, ```markdown, ``` etc.)
+  const codeBlockMatch = jsonStr.match(/```(?:\w+)?\s*([\s\S]*?)\s*```/);
   if (codeBlockMatch) {
     jsonStr = codeBlockMatch[1].trim();
+  }
+
+  // Remove any leading non-JSON text (like "markdown\n" or "json\n")
+  // Find the first { character
+  const firstBrace = jsonStr.indexOf("{");
+  if (firstBrace > 0) {
+    jsonStr = jsonStr.slice(firstBrace);
   }
 
   // Try direct parse first
@@ -86,9 +93,11 @@ The JSON must have exactly this structure (fill in the values):
 Output ONLY the JSON object with filled values. No other text.`;
 
 // System prompt for skill refinement
-const SKILL_REFINEMENT_SYSTEM = `You refine Claude Code skills. Output ONLY valid JSON, nothing else.
+const SKILL_REFINEMENT_SYSTEM = `You are a JSON-only skill editor. You modify Claude Code skills and return the complete updated skill as a JSON object.
 
-Required structure:
+CRITICAL: Your response must be ONLY a valid JSON object. No markdown, no explanations, no code blocks - just raw JSON starting with { and ending with }.
+
+Required JSON structure:
 {
   "name": "kebab-case-name",
   "description": "One sentence description",
@@ -99,14 +108,15 @@ Required structure:
     "assets": []
   },
   "metadata": { "license": "MIT", "version": "1.0" },
-  "changesSummary": "What was changed"
+  "changesSummary": "Brief description of what was changed"
 }
 
 Rules:
-- Output raw JSON only
-- skillMd must start with "---\\n"
+- Return ONLY the JSON object, nothing else
+- skillMd must start with "---\\n" (YAML frontmatter)
 - Use \\n for newlines in strings
-- Preserve existing functionality unless asked to change it`;
+- Apply the requested changes to the skill
+- Preserve existing functionality unless explicitly asked to change it`;
 
 /**
  * Ensure skillMd has valid YAML frontmatter
@@ -219,6 +229,10 @@ export const generateSkill = action({
           role: "user",
           content: userPrompt,
         },
+        {
+          role: "assistant",
+          content: '{"name":',
+        },
       ],
     });
 
@@ -227,7 +241,8 @@ export const generateSkill = action({
       throw new Error("No text response from Claude");
     }
 
-    const generated = parseClaudeJSON<GeneratedSkill>(textContent.text);
+    // Prepend the prefill we used
+    const generated = parseClaudeJSON<GeneratedSkill>('{"name":' + textContent.text);
 
     // Validate the generated skill
     if (!generated.name || !generated.description || !generated.files?.skillMd) {
@@ -305,7 +320,19 @@ export const refineSkill = action({
       messages: [
         {
           role: "user",
-          content: `Current skill:\n${currentSkillJson}\n\nRequested changes:\n${args.feedback}\n\nOutput the updated skill as JSON only.`,
+          content: `You are editing a Claude Code skill. Apply the requested changes and return the COMPLETE updated skill as a JSON object.
+
+CURRENT SKILL JSON:
+${currentSkillJson}
+
+CHANGES TO APPLY:
+${args.feedback}
+
+IMPORTANT: Output ONLY the updated skill as a raw JSON object. Do not write code reviews, summaries, or explanations. Just the JSON.`,
+        },
+        {
+          role: "assistant",
+          content: '{"name":',
         },
       ],
     });
@@ -315,8 +342,9 @@ export const refineSkill = action({
       throw new Error("No text response from Claude");
     }
 
+    // Prepend the prefill we used
     const refined = parseClaudeJSON<GeneratedSkill & { changesSummary: string }>(
-      textContent.text
+      '{"name":' + textContent.text
     );
 
     // Ensure skillMd has valid frontmatter
@@ -414,7 +442,16 @@ export const regenerateSection = action({
       messages: [
         {
           role: "user",
-          content: `${sectionPrompt}\n\nCurrent skill:\n${currentSkillJson}\n\nOutput the updated skill as JSON only.`,
+          content: `You are editing a Claude Code skill. ${sectionPrompt}
+
+CURRENT SKILL JSON:
+${currentSkillJson}
+
+IMPORTANT: Output ONLY the updated skill as a raw JSON object. Do not write code reviews, summaries, or explanations. Just the JSON.`,
+        },
+        {
+          role: "assistant",
+          content: '{"name":',
         },
       ],
     });
@@ -424,7 +461,8 @@ export const regenerateSection = action({
       throw new Error("No text response from Claude");
     }
 
-    const updated = parseClaudeJSON<GeneratedSkill>(textContent.text);
+    // Prepend the prefill we used
+    const updated = parseClaudeJSON<GeneratedSkill>('{"name":' + textContent.text);
 
     // Ensure skillMd has valid frontmatter
     const validSkillMd = ensureValidSkillMd(
