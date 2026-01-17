@@ -30,6 +30,7 @@
     "@radix-ui/react-select": "^2.2.6",
     "@slack/web-api": "^7.13.0",
     "@types/pg": "^8.16.0",
+    "@vercel/analytics": "^1.6.1",
     "ai": "^6.0.14",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
