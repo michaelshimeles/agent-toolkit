@@ -324,17 +324,31 @@ export const POST = app.handle;
 CRITICAL: You MUST respond with ONLY a JSON object. No explanations, no introductory text, no markdown formatting.
 Your entire response must be a valid JSON object starting with { and ending with }.
 
+EXTERNAL API KEY DETECTION:
+If this API requires authentication (API keys, tokens, etc.), you MUST detect and report this:
+1. Set "requiredApiKeys" array with all required external services
+2. Each entry needs: serviceName, serviceUrl (where to get the key), instructions
+
 Return ONLY this JSON structure:
 {
   "code": "// Full TypeScript implementation with JSON-RPC 2.0...",
   "tools": [
     {
       "name": "tool_name",
-      "description": "Clear description", 
+      "description": "Clear description",
       "schema": { /* JSON schema */ }
     }
+  ],
+  "requiredApiKeys": [
+    {
+      "serviceName": "Service Name (e.g., OpenWeatherMap)",
+      "serviceUrl": "https://example.com/api-keys",
+      "instructions": "1. Sign up at...\n2. Get your API key from..."
+    }
   ]
-}`,
+}
+
+If no external API keys are required, set "requiredApiKeys": []`,
 
   GENERATE_MCP_FROM_DOCS: `You are an expert at analyzing API documentation and building MCP (Model Context Protocol) servers.
 You will be given HTML/text from API documentation and need to:
@@ -623,6 +637,12 @@ Handle different languages:
 
 IMPORTANT: If the code doesn't appear to be a web API, identify what kind of interface it provides (CLI, library, SDK, etc.) and document those interfaces instead.
 
+EXTERNAL API KEY DETECTION:
+If this service requires authentication (API keys, tokens, etc.), you MUST detect and report this:
+1. Look for API key usage in the code (environment variables, config files, headers)
+2. Check for authentication middleware or decorators
+3. Identify any external services being called that need credentials
+
 Return as JSON (you MUST return valid JSON):
 {
   "name": "API/Service Name",
@@ -639,9 +659,17 @@ Return as JSON (you MUST return valid JSON):
       ],
       "response": { "description": "What it returns" }
     }
+  ],
+  "requiredApiKeys": [
+    {
+      "serviceName": "Service Name (e.g., OpenWeatherMap, Stripe)",
+      "serviceUrl": "https://example.com/api-keys (where to get the key)",
+      "instructions": "1. Sign up at...\n2. Get your API key from..."
+    }
   ]
 }
 
+If no external API keys are required, set "requiredApiKeys": [].
 If you cannot identify any API endpoints, return a JSON with an empty endpoints array and explain in the description field what the codebase appears to be.`,
 };
 

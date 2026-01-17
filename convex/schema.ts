@@ -122,6 +122,13 @@ export default defineSchema({
       example: v.string(),
     }))),
 
+    // External API key requirements (detected during generation)
+    requiredApiKeys: v.optional(v.array(v.object({
+      serviceName: v.string(),      // "OpenWeatherMap", "Stripe", etc.
+      serviceUrl: v.optional(v.string()),  // Where to get the key
+      instructions: v.optional(v.string()), // Setup instructions
+    }))),
+
     // Security config
     allowedDomains: v.array(v.string()),
     rateLimit: v.number(),

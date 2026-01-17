@@ -136,7 +136,8 @@ async function generateMCPCode(params: {
   schemas: any;
   sourceType: string;
   baseUrl?: string | null;
-}): Promise<{ code: string; tools: any[] }> {
+  requiredApiKeys?: Array<{ serviceName: string; serviceUrl?: string; instructions?: string }>;
+}): Promise<{ code: string; tools: any[]; requiredApiKeys?: any[] }> {
   // Use real Claude API to generate MCP server code
   const spec = {
     info: {
@@ -171,6 +172,7 @@ async function generateMCPCode(params: {
   return {
     code: result.code,
     tools: result.tools || [],
+    requiredApiKeys: (result as any).requiredApiKeys || params.requiredApiKeys || [],
   };
 }
 
@@ -211,6 +213,7 @@ async function analyzeGitHubRepo(
   endpoints: any[];
   schemas: any;
   baseUrl: string | null;
+  requiredApiKeys?: Array<{ serviceName: string; serviceUrl?: string; instructions?: string }>;
 }> {
   // Supported file extensions for code analysis
   const codeExtensions = [
@@ -422,6 +425,7 @@ async function analyzeGitHubRepo(
     endpoints: result.endpoints || [],
     schemas: {},
     baseUrl: result.baseUrl || null,
+    requiredApiKeys: (result as any).requiredApiKeys || [],
   };
 }
 
@@ -505,7 +509,7 @@ export const generateFromOpenAPI = action({
     const schemas = extractOpenAPISchemas(spec);
 
     // 4. Generate MCP tools using Claude API
-    const { code: generatedCode, tools } = await generateMCPCode({
+    const { code: generatedCode, tools, requiredApiKeys } = await generateMCPCode({
       name,
       description,
       endpoints,
@@ -523,6 +527,7 @@ export const generateFromOpenAPI = action({
       sourceUrl: specUrl,
       code: generatedCode,
       tools,
+      requiredApiKeys: requiredApiKeys && requiredApiKeys.length > 0 ? requiredApiKeys : undefined,
     });
 
     return { serverId, preview: generatedCode };
@@ -556,6 +561,13 @@ export const generateFromDocsUrl = action({
     const generatedCode = analysis.code;
     const tools = analysis.tools;
 
+    // Extract required API keys from analysis
+    const requiredApiKeys = (analysis as any).requiresExternalApiKey ? [{
+      serviceName: (analysis as any).externalApiService || "External API",
+      serviceUrl: (analysis as any).externalApiKeyUrl,
+      instructions: (analysis as any).externalApiKeyInstructions,
+    }] : [];
+
     // 4. Store draft
     const slug = generateSlug(analysis.name);
     const serverId: any = await ctx.runMutation(api.ai.createDraftServer, {
@@ -567,6 +579,7 @@ export const generateFromDocsUrl = action({
       sourceUrl: docsUrl,
       code: generatedCode,
       tools,
+      requiredApiKeys: requiredApiKeys.length > 0 ? requiredApiKeys : undefined,
     });
 
     return { serverId, preview: generatedCode };
@@ -611,13 +624,14 @@ export const generateFromGitHubRepo = action({
     const analysis = await analyzeGitHubRepo(owner, repoName);
 
     // 4. Generate MCP code
-    const { code: generatedCode, tools } = await generateMCPCode({
+    const { code: generatedCode, tools, requiredApiKeys } = await generateMCPCode({
       name: repoData.name,
       description: repoData.description || "MCP server generated from GitHub repository",
       endpoints: analysis.endpoints,
       schemas: analysis.schemas,
       sourceType: "github_repo",
       baseUrl: analysis.baseUrl,
+      requiredApiKeys: analysis.requiredApiKeys,
     });
 
     // 5. Store draft
@@ -631,6 +645,7 @@ export const generateFromGitHubRepo = action({
       sourceUrl: repoUrl,
       code: generatedCode,
       tools,
+      requiredApiKeys: requiredApiKeys && requiredApiKeys.length > 0 ? requiredApiKeys : undefined,
     });
 
     return { serverId, preview: generatedCode };
@@ -646,6 +661,23 @@ export const deployServer = action({
     const server = await ctx.runQuery(api.ai.getServer, { serverId });
     if (!server) {
       throw new Error("Server not found");
+    }
+
+    // Check for missing required API keys before deployment
+    if (server.requiredApiKeys && server.requiredApiKeys.length > 0) {
+      const storedKeys = await ctx.runQuery(api.builder.listExternalApiKeysForServer, { serverId });
+      const storedServiceNames = new Set(storedKeys.map((k: { serviceName: string }) => k.serviceName.toLowerCase()));
+
+      const missingKeys = server.requiredApiKeys.filter(
+        (required: { serviceName: string }) => !storedServiceNames.has(required.serviceName.toLowerCase())
+      );
+
+      if (missingKeys.length > 0) {
+        const missingNames = missingKeys.map((k: { serviceName: string }) => k.serviceName).join(", ");
+        throw new Error(
+          `Missing required API keys: ${missingNames}. Please configure these keys before deploying.`
+        );
+      }
     }
 
     // Update status to deploying

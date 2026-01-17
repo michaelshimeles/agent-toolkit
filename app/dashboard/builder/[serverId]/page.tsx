@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useQuery, useAction, useMutation } from "convex/react";
+import { useQuery, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
 import { useParams } from "next/navigation";
@@ -26,6 +26,11 @@ export default function ServerDetailPage() {
   const [codeCopied, setCodeCopied] = useState(false);
   const [docsExpanded, setDocsExpanded] = useState(false);
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
+  const [currentApiKeyService, setCurrentApiKeyService] = useState<{
+    serviceName: string;
+    serviceUrl?: string;
+    instructions?: string;
+  } | null>(null);
 
   // Get user's Convex ID
   const convexUser = useQuery(
@@ -36,6 +41,12 @@ export default function ServerDetailPage() {
   // Get server details
   const server = useQuery(
     api.ai.getServer,
+    serverId ? { serverId: serverId as any } : "skip"
+  );
+
+  // Get stored external API keys for this server
+  const storedApiKeys = useQuery(
+    api.builder.listExternalApiKeysForServer,
     serverId ? { serverId: serverId as any } : "skip"
   );
 
@@ -57,7 +68,7 @@ export default function ServerDetailPage() {
     setDeployError(null);
 
     try {
-      const result = await deployServer({ serverId: server._id });
+      await deployServer({ serverId: server._id });
       // Refresh page to show deployment status
       window.location.reload();
     } catch (err: any) {
@@ -406,6 +417,98 @@ export default function ServerDetailPage() {
               </div>
             </div>
 
+            {/* Required API Keys */}
+            {server.requiredApiKeys && server.requiredApiKeys.length > 0 && (
+              <div className="bg-card rounded-lg border p-6">
+                <h3 className="font-semibold mb-4">Required API Keys</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  This server requires API keys from external services to function.
+                </p>
+                <div className="space-y-3">
+                  {server.requiredApiKeys.map((requirement: any, index: number) => {
+                    const isConfigured = storedApiKeys?.some(
+                      (key) => key.serviceName === requirement.serviceName
+                    );
+                    return (
+                      <div
+                        key={index}
+                        className={`p-4 rounded-lg border ${
+                          isConfigured
+                            ? "border-green-500/30 bg-green-500/5"
+                            : "border-amber-500/30 bg-amber-500/5"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              {isConfigured ? (
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  width="16"
+                                  height="16"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  className="text-green-500"
+                                >
+                                  <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                              ) : (
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  width="16"
+                                  height="16"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  className="text-amber-500"
+                                >
+                                  <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                </svg>
+                              )}
+                              <span className="font-medium text-sm">
+                                {requirement.serviceName}
+                              </span>
+                            </div>
+                            {requirement.serviceUrl && (
+                              <a
+                                href={requirement.serviceUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-accent hover:underline"
+                              >
+                                Get API key →
+                              </a>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => {
+                              setCurrentApiKeyService(requirement);
+                              setShowApiKeyDialog(true);
+                            }}
+                            className={`px-3 py-1.5 text-xs rounded-full transition-colors ${
+                              isConfigured
+                                ? "bg-muted text-muted-foreground hover:bg-accent"
+                                : "bg-primary text-primary-foreground hover:brightness-110"
+                            }`}
+                          >
+                            {isConfigured ? "Update" : "Add Key"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Security Config */}
             <div className="bg-card rounded-lg border p-6">
               <h3 className="font-semibold mb-4">Security Configuration</h3>
@@ -625,6 +728,43 @@ export default function ServerDetailPage() {
                       No rate limit set. Your API key will be used for authentication.
                     </div>
                   )}
+                  {/* Warning for missing required API keys */}
+                  {server.requiredApiKeys && server.requiredApiKeys.length > 0 && (
+                    (() => {
+                      const missingKeys = server.requiredApiKeys.filter(
+                        (req: any) => !storedApiKeys?.some((key) => key.serviceName === req.serviceName)
+                      );
+                      if (missingKeys.length > 0) {
+                        return (
+                          <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-amber-600 dark:text-amber-400 text-sm">
+                            <div className="flex items-start gap-2">
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="shrink-0 mt-0.5"
+                              >
+                                <path d="M12 9v4" />
+                                <path d="M12 17h.01" />
+                                <path d="M3.586 20.414A2 2 0 0 0 5.414 22h13.172a2 2 0 0 0 1.828-2.586l-6.586-14a2 2 0 0 0-3.656 0l-6.586 14Z" />
+                              </svg>
+                              <span>
+                                Missing API keys: {missingKeys.map((k: any) => k.serviceName).join(", ")}.
+                                Add them above before deploying.
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()
+                  )}
                   <button
                     onClick={handleDeploy}
                     disabled={isDeploying}
@@ -639,20 +779,25 @@ export default function ServerDetailPage() {
         </div>
       </div>
 
-      {/* API Key Dialog - Temporarily disabled until schema is updated */}
-      {/* {server && convexUser && (
+      {/* API Key Dialog */}
+      {server && convexUser && currentApiKeyService && (
         <ApiKeyDialog
           isOpen={showApiKeyDialog}
-          onClose={() => setShowApiKeyDialog(false)}
+          onClose={() => {
+            setShowApiKeyDialog(false);
+            setCurrentApiKeyService(null);
+          }}
           userId={convexUser._id}
           serverId={server._id}
-          serviceName=""
+          serviceName={currentApiKeyService.serviceName}
+          serviceUrl={currentApiKeyService.serviceUrl}
+          instructions={currentApiKeyService.instructions}
           onSuccess={() => {
-            // Refresh server data after key is saved
-            // Server query will automatically re-fetch
+            setShowApiKeyDialog(false);
+            setCurrentApiKeyService(null);
           }}
         />
-      )} */}
+      )}
     </div>
   );
 }

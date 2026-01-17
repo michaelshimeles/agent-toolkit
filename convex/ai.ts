@@ -33,6 +33,13 @@ export const createDraftServer = mutation({
         schema: v.any(),
       })
     ),
+    requiredApiKeys: v.optional(v.array(
+      v.object({
+        serviceName: v.string(),
+        serviceUrl: v.optional(v.string()),
+        instructions: v.optional(v.string()),
+      })
+    )),
   },
   handler: async (ctx, args) => {
     const serverId = await ctx.db.insert("generatedServers", {
@@ -44,6 +51,7 @@ export const createDraftServer = mutation({
       sourceUrl: args.sourceUrl,
       code: args.code,
       tools: args.tools,
+      requiredApiKeys: args.requiredApiKeys,
       status: "draft",
       allowedDomains: [],
       rateLimit: 100,

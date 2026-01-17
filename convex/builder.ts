@@ -241,6 +241,28 @@ export const listExternalApiKeys = query({
 });
 
 /**
+ * Get all external API keys for a specific server
+ */
+export const listExternalApiKeysForServer = query({
+  args: { serverId: v.id("generatedServers") },
+  handler: async (ctx, args) => {
+    const keys = await ctx.db
+      .query("externalApiKeys")
+      .withIndex("by_server", (q) => q.eq("serverId", args.serverId))
+      .collect();
+
+    // Return metadata only, not the actual keys
+    return keys.map((key) => ({
+      _id: key._id,
+      serviceName: key.serviceName,
+      keyName: key.keyName,
+      createdAt: key.createdAt,
+      lastUsed: key.lastUsed,
+    }));
+  },
+});
+
+/**
  * Delete external API key
  */
 export const deleteExternalApiKey = mutation({
