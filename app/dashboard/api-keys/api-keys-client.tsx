@@ -80,38 +80,38 @@ export default function ApiKeysClient() {
   };
 
   return (
-    <main className="min-h-screen px-6 py-8">
+    <main className="min-h-screen px-6 py-10 md:py-14">
       <div className="max-w-5xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-2xl font-semibold tracking-tight">API Keys</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+        <div className="mb-10">
+          <h1 className="text-3xl font-semibold tracking-tight">API Keys</h1>
+          <p className="text-base text-muted-foreground mt-2">
             Manage your API keys for authentication
           </p>
         </div>
 
       {/* Created Key Modal */}
       {createdKey && (
-        <div className="mb-8 p-6 border border-green-500/20 bg-green-500/10 rounded-lg">
-          <h3 className="font-semibold text-green-500 mb-2">
+        <div className="mb-10 p-6 border border-green-500/20 bg-green-500/10 rounded-2xl">
+          <h3 className="font-semibold text-green-500 mb-2 text-lg">
             API Key Created Successfully!
           </h3>
-          <p className="text-sm text-green-500/80 mb-4">
+          <p className="text-sm text-green-500/80 mb-5">
             Copy and save this key somewhere safe. You won't be able to see it again.
           </p>
-          <div className="flex items-center gap-2">
-            <code className="flex-grow p-3 bg-background border rounded font-mono text-sm break-all">
+          <div className="flex items-center gap-3">
+            <code className="flex-grow p-4 bg-background border border-border/50 rounded-xl font-mono text-sm break-all">
               {createdKey}
             </code>
             <button
               onClick={() => copyToClipboard(createdKey)}
-              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+              className="h-10 px-5 bg-green-600 text-white rounded-full hover:bg-green-700 transition-all active:scale-[0.98]"
             >
               Copy
             </button>
           </div>
           <button
             onClick={() => setCreatedKey(null)}
-            className="mt-4 text-sm text-green-500 hover:text-green-400"
+            className="mt-5 text-sm text-green-500 hover:text-green-400"
           >
             Dismiss
           </button>
@@ -119,20 +119,20 @@ export default function ApiKeysClient() {
       )}
 
       {/* Create New Key */}
-      <div className="mb-8 p-6 border rounded-lg bg-card">
-        <h2 className="font-semibold text-lg mb-4">Create New API Key</h2>
+      <div className="mb-10 p-6 border border-border/50 rounded-2xl bg-card">
+        <h2 className="font-semibold text-lg mb-5 tracking-tight">Create New API Key</h2>
         <div className="flex gap-4">
           <input
             type="text"
             value={newKeyName}
             onChange={(e) => setNewKeyName(e.target.value)}
             placeholder="Key name (e.g., Production, Development)"
-            className="flex-grow px-4 py-2 border border-input bg-background rounded focus:outline-none focus:ring-2 focus:ring-ring"
+            className="flex-grow h-10 px-4 border border-border/50 bg-card rounded-xl focus:outline-none focus:ring-2 focus:ring-ring"
           />
           <button
             onClick={createKey}
             disabled={creatingKey || !newKeyName.trim()}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed transition-colors"
+            className="h-10 px-5 bg-primary text-primary-foreground rounded-full hover:brightness-110 disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed transition-all active:scale-[0.98] shadow-sm"
           >
             {creatingKey ? "Creating..." : "Create Key"}
           </button>
@@ -141,23 +141,23 @@ export default function ApiKeysClient() {
 
       {/* Existing Keys */}
       <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-lg">Your API Keys</h2>
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="font-semibold text-lg tracking-tight">Your API Keys</h2>
           <button
             onClick={() => fetchKeys()}
             disabled={loading}
-            className="text-sm text-primary hover:text-primary/80"
+            className="text-sm text-accent hover:text-accent/80"
           >
             {loading ? "Loading..." : "Refresh"}
           </button>
         </div>
 
         {initialLoading ? (
-          <div className="flex items-center justify-center py-12">
+          <div className="flex items-center justify-center py-16">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground"></div>
           </div>
         ) : keys.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 border border-dashed rounded-lg">
+          <div className="flex flex-col items-center justify-center py-16 border border-dashed border-border/50 rounded-2xl bg-card">
             <p className="text-sm text-muted-foreground">
               No API keys created yet
             </p>
@@ -167,7 +167,7 @@ export default function ApiKeysClient() {
             {keys.map((key) => (
               <div
                 key={key._id}
-                className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-accent transition-colors"
+                className="flex items-center justify-between p-5 border border-border/50 rounded-xl bg-card hover:border-border hover:shadow-md transition-all duration-200"
               >
                 <div>
                   <h3 className="font-medium">{key.name}</h3>
@@ -182,7 +182,7 @@ export default function ApiKeysClient() {
                 </div>
                 <button
                   onClick={() => revokeKey(key._id)}
-                  className="px-4 py-2 text-sm bg-destructive/10 text-destructive rounded hover:bg-destructive/20 transition-colors"
+                  className="h-8 px-4 text-sm bg-destructive/10 text-destructive rounded-full hover:bg-destructive/20 transition-all active:scale-[0.98]"
                 >
                   Revoke
                 </button>
@@ -193,7 +193,7 @@ export default function ApiKeysClient() {
       </div>
 
       {/* Usage Instructions */}
-      <div className="mt-8 p-6 bg-muted rounded-lg space-y-6">
+      <div className="mt-10 p-6 bg-muted rounded-2xl space-y-6">
         <div>
           <h3 className="font-semibold mb-2">Usage Instructions</h3>
           <p className="text-sm text-muted-foreground mb-4">

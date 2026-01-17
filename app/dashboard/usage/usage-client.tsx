@@ -25,20 +25,20 @@ export default function UsageClient({ clerkId }: UsageClientProps) {
   );
 
   return (
-    <main className="min-h-screen px-6 py-8">
+    <main className="min-h-screen px-6 py-10 md:py-14">
       <div className="max-w-5xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-2xl font-semibold tracking-tight">Usage</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+        <div className="mb-10">
+          <h1 className="text-3xl font-semibold tracking-tight">Usage</h1>
+          <p className="text-base text-muted-foreground mt-2">
             Monitor your API usage and performance metrics
           </p>
         </div>
 
       {/* Stats Cards */}
       {stats === undefined ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="p-6 border rounded-lg animate-pulse">
+            <div key={i} className="p-6 border border-border/50 rounded-xl animate-pulse">
               <LoadingSkeleton width="w-2/3" className="mb-2" />
               <LoadingSkeleton width="w-1/2" height="h-8" />
             </div>
@@ -46,58 +46,58 @@ export default function UsageClient({ clerkId }: UsageClientProps) {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="p-6 border rounded-lg bg-card">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
+            <div className="p-6 border border-border/50 rounded-xl bg-card hover:shadow-md transition-all duration-200">
               <h3 className="text-sm font-medium text-muted-foreground mb-2">
                 Total Requests
               </h3>
-              <p className="text-3xl font-bold">
+              <p className="text-3xl font-bold tracking-tight">
                 {stats.totalRequests.toLocaleString()}
               </p>
             </div>
 
-            <div className="p-6 border rounded-lg bg-green-500/10">
-              <h3 className="text-sm font-medium text-green-500 mb-2">
+            <div className="p-6 border border-border/50 rounded-xl bg-card hover:shadow-md transition-all duration-200">
+              <h3 className="text-sm font-medium text-muted-foreground mb-2">
                 Successful
               </h3>
-              <p className="text-3xl font-bold text-green-500">
+              <p className="text-3xl font-bold tracking-tight">
                 {stats.successfulRequests.toLocaleString()}
               </p>
-              <p className="text-xs text-green-500/70 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 {stats.totalRequests > 0
                   ? `${((stats.successfulRequests / stats.totalRequests) * 100).toFixed(1)}%`
                   : "0%"}
               </p>
             </div>
 
-            <div className="p-6 border rounded-lg bg-destructive/10">
-              <h3 className="text-sm font-medium text-destructive mb-2">Failed</h3>
-              <p className="text-3xl font-bold text-destructive">
+            <div className="p-6 border border-border/50 rounded-xl bg-card hover:shadow-md transition-all duration-200">
+              <h3 className="text-sm font-medium text-muted-foreground mb-2">Failed</h3>
+              <p className="text-3xl font-bold tracking-tight">
                 {stats.failedRequests.toLocaleString()}
               </p>
-              <p className="text-xs text-destructive/70 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 {stats.totalRequests > 0
                   ? `${((stats.failedRequests / stats.totalRequests) * 100).toFixed(1)}%`
                   : "0%"}
               </p>
             </div>
 
-            <div className="p-6 border rounded-lg bg-primary/10">
-              <h3 className="text-sm font-medium text-primary mb-2">
+            <div className="p-6 border border-border/50 rounded-xl bg-card hover:shadow-md transition-all duration-200">
+              <h3 className="text-sm font-medium text-muted-foreground mb-2">
                 Avg Latency
               </h3>
-              <p className="text-3xl font-bold text-primary">
+              <p className="text-3xl font-bold tracking-tight">
                 {stats.avgLatency}
-                <span className="text-sm ml-1">ms</span>
+                <span className="text-sm font-normal text-muted-foreground ml-1">ms</span>
               </p>
             </div>
           </div>
 
           {/* Usage by Integration */}
           {stats.byIntegration && Object.keys(stats.byIntegration).length > 0 && (
-            <div className="mb-8 p-6 border rounded-lg bg-card">
-              <h2 className="font-semibold text-lg mb-4">Usage by Integration</h2>
-              <div className="space-y-3">
+            <div className="mb-10 p-6 border border-border/50 rounded-xl bg-card">
+              <h2 className="font-semibold text-lg mb-5 tracking-tight">Usage by Integration</h2>
+              <div className="space-y-4">
                 {Object.entries(stats.byIntegration)
                   .sort(([, a], [, b]) => (b as number) - (a as number))
                   .map(([integration, count]) => {
@@ -105,7 +105,7 @@ export default function UsageClient({ clerkId }: UsageClientProps) {
                       (((count as number) / stats.totalRequests) * 100).toFixed(1);
                     return (
                       <div key={integration}>
-                        <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center justify-between mb-1.5">
                           <span className="text-sm font-medium capitalize">
                             {integration}
                           </span>
@@ -113,9 +113,9 @@ export default function UsageClient({ clerkId }: UsageClientProps) {
                             {String(count)} ({String(percentage)}%)
                           </span>
                         </div>
-                        <div className="w-full bg-muted rounded-full h-2">
+                        <div className="w-full bg-secondary rounded-full h-2">
                           <div
-                            className="bg-primary h-2 rounded-full"
+                            className="bg-foreground/30 h-2 rounded-full transition-all duration-300"
                             style={{ width: `${percentage}%` }}
                           />
                         </div>
@@ -127,41 +127,41 @@ export default function UsageClient({ clerkId }: UsageClientProps) {
           )}
 
           {/* Recent Activity */}
-          <div className="mb-8">
-            <h2 className="font-semibold text-lg mb-4">Recent Activity</h2>
+          <div className="mb-10">
+            <h2 className="font-semibold text-lg mb-5 tracking-tight">Recent Activity</h2>
             {logs === undefined ? (
               <LoadingTable rows={10} />
             ) : logs.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 border border-dashed rounded-lg">
+              <div className="flex flex-col items-center justify-center py-16 border border-dashed border-border/50 rounded-2xl bg-card">
                 <p className="text-sm text-muted-foreground">
                   No activity recorded yet
                 </p>
               </div>
             ) : (
-              <div className="border rounded-lg overflow-hidden">
+              <div className="border border-border/50 rounded-xl overflow-hidden">
                 <table className="w-full">
-                  <thead className="bg-muted">
+                  <thead className="bg-secondary">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         Integration
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         Tool
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         Status
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         Latency
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         Time
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="bg-card divide-y divide-border">
+                  <tbody className="bg-card divide-y divide-border/50">
                     {logs.map((log: any, index: number) => (
-                      <tr key={index} className="hover:bg-accent">
+                      <tr key={index} className="hover:bg-secondary/50 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           {log.integrationName || log.integrationSlug || "Unknown"}
                         </td>
@@ -170,10 +170,10 @@ export default function UsageClient({ clerkId }: UsageClientProps) {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span
-                            className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            className={`px-2.5 py-1 inline-flex text-xs leading-5 font-medium rounded-full ${
                               log.status === "success"
-                                ? "bg-green-500/10 text-green-500"
-                                : "bg-destructive/10 text-destructive"
+                                ? "bg-secondary text-foreground"
+                                : "bg-secondary text-muted-foreground"
                             }`}
                           >
                             {log.status}

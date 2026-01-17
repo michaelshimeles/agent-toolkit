@@ -10,19 +10,19 @@ export default async function BuilderPage() {
   }
 
   return (
-    <main className="min-h-screen px-6 py-8">
+    <main className="min-h-screen px-6 py-10 md:py-14">
       <div className="max-w-5xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-10">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">MCP</h1>
-            <p className="text-sm text-muted-foreground mt-1">
+            <h1 className="text-3xl font-semibold tracking-tight">MCP</h1>
+            <p className="text-base text-muted-foreground mt-2">
               Create from templates or generate with AI
             </p>
           </div>
           <Link
             href="/dashboard/builder/new"
-            className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 flex items-center gap-2"
+            className="h-10 px-5 text-sm bg-primary text-primary-foreground rounded-full hover:brightness-110 flex items-center gap-2 shadow-sm active:scale-[0.98]"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -43,35 +43,37 @@ export default async function BuilderPage() {
         </div>
 
         {/* Options */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Link
-            href="/dashboard/integrations"
-            className="group p-6 border rounded-lg hover:border-foreground/20 transition-colors"
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div
+            className="group p-6 bg-card border border-border/50 rounded-xl opacity-50 cursor-not-allowed relative"
           >
-            <h2 className="text-sm font-semibold mb-2">Templates</h2>
-            <p className="text-sm text-muted-foreground mb-4">
+            <span className="absolute top-4 right-4 text-xs px-2.5 py-1 bg-muted text-muted-foreground rounded-full font-medium">
+              Coming Soon
+            </span>
+            <h2 className="text-base font-semibold mb-2 tracking-tight">Templates</h2>
+            <p className="text-sm text-muted-foreground mb-5">
               Pre-built servers for GitHub, Slack, Linear, and more.
             </p>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="text-xs px-2 py-0.5 bg-muted rounded">GitHub</span>
-              <span className="text-xs px-2 py-0.5 bg-muted rounded">Slack</span>
-              <span className="text-xs px-2 py-0.5 bg-muted rounded">Linear</span>
-              <span className="text-xs px-2 py-0.5 bg-muted rounded text-muted-foreground">+10</span>
+            <div className="flex flex-wrap gap-2">
+              <span className="text-xs px-3 py-1 bg-muted rounded-full">GitHub</span>
+              <span className="text-xs px-3 py-1 bg-muted rounded-full">Slack</span>
+              <span className="text-xs px-3 py-1 bg-muted rounded-full">Linear</span>
+              <span className="text-xs px-3 py-1 bg-muted rounded-full text-muted-foreground">+10</span>
             </div>
-          </Link>
+          </div>
 
           <Link
             href="/dashboard/builder/new"
-            className="group p-6 border rounded-lg hover:border-foreground/20 transition-colors"
+            className="group p-6 bg-card border border-border/50 rounded-xl hover:border-border hover:shadow-md transition-all duration-200"
           >
-            <h2 className="text-sm font-semibold mb-2">AI Builder</h2>
-            <p className="text-sm text-muted-foreground mb-4">
+            <h2 className="text-base font-semibold mb-2 tracking-tight">AI Builder</h2>
+            <p className="text-sm text-muted-foreground mb-5">
               Generate from OpenAPI specs, docs, or GitHub repos.
             </p>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="text-xs px-2 py-0.5 bg-muted rounded">OpenAPI</span>
-              <span className="text-xs px-2 py-0.5 bg-muted rounded">Docs</span>
-              <span className="text-xs px-2 py-0.5 bg-muted rounded">GitHub</span>
+            <div className="flex flex-wrap gap-2">
+              <span className="text-xs px-3 py-1 bg-muted rounded-full">OpenAPI</span>
+              <span className="text-xs px-3 py-1 bg-muted rounded-full">Docs</span>
+              <span className="text-xs px-3 py-1 bg-muted rounded-full">GitHub</span>
             </div>
           </Link>
         </div>

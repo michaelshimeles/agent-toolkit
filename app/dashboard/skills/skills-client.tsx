@@ -87,18 +87,18 @@ export default function SkillsClient({ clerkId }: SkillsClientProps) {
   };
 
   return (
-    <main className="min-h-screen px-6 py-8">
+    <main className="min-h-screen px-6 py-10 md:py-14">
       <div className="max-w-5xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-10">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Skills</h1>
-            <p className="text-sm text-muted-foreground mt-1">
+            <h1 className="text-3xl font-semibold tracking-tight">Skills</h1>
+            <p className="text-base text-muted-foreground mt-2">
               Create and deploy Agent Skills for Claude Code
             </p>
           </div>
           <button
             onClick={() => router.push("/dashboard/skills/new")}
-            className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 flex items-center gap-2"
+            className="h-10 px-5 text-sm bg-primary text-primary-foreground rounded-full hover:brightness-110 flex items-center gap-2 shadow-sm active:scale-[0.98]"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -121,13 +121,13 @@ export default function SkillsClient({ clerkId }: SkillsClientProps) {
 
       {/* Content */}
       {skills === undefined ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               <LoadingCard />
               <LoadingCard />
             </div>
           ) : skills.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 border border-dashed rounded-lg">
-              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+            <div className="flex flex-col items-center justify-center py-20 border border-dashed border-border/50 rounded-2xl bg-card">
+              <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-5">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="24"
@@ -146,27 +146,27 @@ export default function SkillsClient({ clerkId }: SkillsClientProps) {
                   <path d="M9 15h6" />
                 </svg>
               </div>
-              <h3 className="font-semibold mb-2">No skills yet</h3>
-              <p className="text-sm text-muted-foreground mb-4 text-center max-w-sm">
+              <h3 className="font-semibold text-lg mb-2">No skills yet</h3>
+              <p className="text-sm text-muted-foreground mb-6 text-center max-w-sm">
                 Create your first Agent Skill to extend Claude Code with custom
                 capabilities.
               </p>
               <button
                 onClick={() => router.push("/dashboard/skills/new")}
-                className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
+                className="h-10 px-5 text-sm bg-primary text-primary-foreground rounded-full hover:brightness-110 shadow-sm active:scale-[0.98]"
               >
                 Create Your First Skill
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {skills.map((skill) => (
                 <div
                   key={skill._id}
                   onClick={() =>
                     router.push(`/dashboard/skills/${skill._id}`)
                   }
-                  className="flex flex-col p-6 border rounded-lg bg-card hover:bg-accent transition-colors group relative cursor-pointer"
+                  className="flex flex-col p-6 border border-border/50 rounded-xl bg-card hover:border-border hover:shadow-md transition-all duration-200 group relative cursor-pointer"
                 >
                   {/* Delete button */}
                   <button
@@ -174,7 +174,7 @@ export default function SkillsClient({ clerkId }: SkillsClientProps) {
                       e.stopPropagation();
                       setSkillToDelete({ id: skill._id, name: skill.name });
                     }}
-                    className="absolute top-3 right-3 p-1.5 rounded-md opacity-0 group-hover:opacity-100 hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-all"
+                    className="absolute top-4 right-4 p-1.5 rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-all"
                     title="Delete skill"
                   >
                     <svg
@@ -198,13 +198,13 @@ export default function SkillsClient({ clerkId }: SkillsClientProps) {
 
                   <div className="flex items-start justify-between mb-4 pr-8">
                     <div>
-                      <h3 className="font-semibold text-lg">{skill.name}</h3>
+                      <h3 className="font-semibold text-lg tracking-tight">{skill.name}</h3>
                       <span className="text-xs text-muted-foreground">
                         v{skill.metadata.version}
                       </span>
                     </div>
                     <span
-                      className={`text-xs px-2 py-1 rounded ${getStatusColor(
+                      className={`text-xs px-2.5 py-1 rounded-full ${getStatusColor(
                         skill.status
                       )}`}
                     >
@@ -212,13 +212,13 @@ export default function SkillsClient({ clerkId }: SkillsClientProps) {
                     </span>
                   </div>
 
-                  <p className="text-sm text-muted-foreground mb-4 flex-grow line-clamp-2">
+                  <p className="text-sm text-muted-foreground mb-5 flex-grow line-clamp-2">
                     {skill.description}
                   </p>
 
                   {/* File indicators */}
                   <div className="flex flex-wrap gap-2 mb-4">
-                    <span className="text-xs px-2 py-1 bg-muted rounded flex items-center gap-1">
+                    <span className="text-xs px-3 py-1 bg-muted rounded-full flex items-center gap-1.5">
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         width="12"
@@ -236,14 +236,14 @@ export default function SkillsClient({ clerkId }: SkillsClientProps) {
                       SKILL.md
                     </span>
                     {skill.files.scripts && skill.files.scripts.length > 0 && (
-                      <span className="text-xs px-2 py-1 bg-muted rounded">
+                      <span className="text-xs px-3 py-1 bg-muted rounded-full">
                         {skill.files.scripts.length} script
                         {skill.files.scripts.length > 1 ? "s" : ""}
                       </span>
                     )}
                     {skill.files.references &&
                       skill.files.references.length > 0 && (
-                        <span className="text-xs px-2 py-1 bg-muted rounded">
+                        <span className="text-xs px-3 py-1 bg-muted rounded-full">
                           {skill.files.references.length} reference
                           {skill.files.references.length > 1 ? "s" : ""}
                         </span>
@@ -257,7 +257,7 @@ export default function SkillsClient({ clerkId }: SkillsClientProps) {
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()}
-                      className="text-xs text-primary hover:underline flex items-center gap-1"
+                      className="text-xs text-accent hover:underline flex items-center gap-1.5"
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"

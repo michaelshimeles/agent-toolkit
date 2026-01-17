@@ -3,8 +3,8 @@ import NavbarClient from "./navbar-client";
 
 export default function Navbar() {
     return (
-        <nav className="flex justify-between items-center h-14 px-6 border-b">
-            <Link href="/" className="text-sm font-semibold tracking-tight">
+        <nav className="flex justify-between items-center h-16 px-6 border-b border-border/50">
+            <Link href="/" className="text-base font-semibold tracking-tight hover:opacity-80 transition-opacity">
                 Toolkit
             </Link>
             <NavbarClient />
