@@ -1,7 +1,20 @@
 import crypto from "crypto";
 
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || "default-encryption-key-please-change-in-production";
 const IV_LENGTH = 16;
+
+function getEncryptionKey(): string {
+  const key = process.env.ENCRYPTION_KEY;
+  if (!key) {
+    throw new Error(
+      'ENCRYPTION_KEY environment variable is required. ' +
+      'Generate with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+    );
+  }
+  if (key.length !== 64) {
+    throw new Error('ENCRYPTION_KEY must be exactly 64 hex characters');
+  }
+  return key;
+}
 
 /**
  * Generate a random API key
@@ -24,7 +37,7 @@ export function hashApiKey(apiKey: string): string {
  */
 export function encrypt(text: string): string {
   const iv = crypto.randomBytes(IV_LENGTH);
-  const key = crypto.scryptSync(ENCRYPTION_KEY, "salt", 32);
+  const key = crypto.scryptSync(getEncryptionKey(), "salt", 32);
   const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
 
   let encrypted = cipher.update(text, "utf8", "hex");
@@ -39,7 +52,7 @@ export function encrypt(text: string): string {
 export function decrypt(encryptedText: string): string {
   const [ivHex, encrypted] = encryptedText.split(":");
   const iv = Buffer.from(ivHex, "hex");
-  const key = crypto.scryptSync(ENCRYPTION_KEY, "salt", 32);
+  const key = crypto.scryptSync(getEncryptionKey(), "salt", 32);
   const decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
 
   let decrypted = decipher.update(encrypted, "hex", "utf8");

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, beforeAll, vi } from "vitest";
 import {
   generateAuthorizationUrl,
   exchangeCodeForToken,
@@ -11,6 +11,11 @@ import {
   type OAuthConfig,
   type OAuthTokenResponse,
 } from "./oauth";
+
+// Set encryption key for tests (64-character hex string)
+beforeAll(() => {
+  process.env.ENCRYPTION_KEY = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+});
 
 describe("OAuth Utilities", () => {
   let mockConfig: OAuthConfig;

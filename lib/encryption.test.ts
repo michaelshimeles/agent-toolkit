@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import {
   generateApiKey,
   hashApiKey,
@@ -6,6 +6,11 @@ import {
   decrypt,
   parseNamespace,
 } from "./encryption";
+
+// Set encryption key for tests (64-character hex string)
+beforeAll(() => {
+  process.env.ENCRYPTION_KEY = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+});
 
 describe("encryption utilities", () => {
   describe("generateApiKey", () => {

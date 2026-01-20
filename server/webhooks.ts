@@ -3,11 +3,12 @@
  * Handles webhooks from external services (Clerk, etc.)
  */
 
-import { Elysia, t } from "elysia";
+import { Elysia } from "elysia";
 import { Webhook } from "svix";
 import { WebhookEvent } from "@clerk/nextjs/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
+import { secureLog } from "@/lib/secure-logger";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
@@ -43,7 +44,7 @@ export const webhooksRoutes = new Elysia({ prefix: "/webhooks" })
         "svix-signature": svix_signature,
       }) as WebhookEvent;
     } catch (err) {
-      console.error("Error verifying webhook:", err);
+      secureLog.error("Error verifying webhook:", err);
       return new Response("Error: Verification error", { status: 400 });
     }
 
@@ -69,7 +70,7 @@ export const webhooksRoutes = new Elysia({ prefix: "/webhooks" })
           imageUrl: image_url,
         });
       } catch (error) {
-        console.error("Error syncing user to Convex:", error);
+        secureLog.error("Error syncing user to Convex:", error);
         return new Response("Error: Failed to sync user", { status: 500 });
       }
     } else if (eventType === "user.deleted") {
@@ -90,7 +91,7 @@ export const webhooksRoutes = new Elysia({ prefix: "/webhooks" })
           });
         }
       } catch (error) {
-        console.error("Error deleting user from Convex:", error);
+        secureLog.error("Error deleting user from Convex:", error);
         return new Response("Error: Failed to delete user", { status: 500 });
       }
     }

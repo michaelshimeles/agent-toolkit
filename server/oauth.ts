@@ -3,7 +3,7 @@
  * Provides OAuth authorization and callback endpoints for all integrations
  */
 
-import { Elysia, t } from "elysia";
+import { Elysia } from "elysia";
 import { currentUser } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
 import { getConvexClient } from "@/lib/convex";
@@ -19,6 +19,7 @@ import {
   getNotionOAuthConfig,
   getSlackOAuthConfig,
 } from "@/lib/oauth";
+import { secureLog } from "@/lib/secure-logger";
 
 // Helper to create OAuth authorize handler
 const createAuthorizeHandler = (
@@ -71,7 +72,7 @@ const createAuthorizeHandler = (
 
       return Response.redirect(authUrl.toString(), 302);
     } catch (error) {
-      console.error(`${providerName} OAuth authorization error:`, error);
+      secureLog.error(`${providerName} OAuth authorization error:`, error);
       return new Response(
         JSON.stringify({ error: "Failed to initiate OAuth flow" }),
         {
@@ -152,7 +153,7 @@ const createCallbackHandler = (
         302
       );
     } catch (error) {
-      console.error(`${providerName} OAuth callback error:`, error);
+      secureLog.error(`${providerName} OAuth callback error:`, error);
       const baseUrl = new URL(request.url).origin;
       return Response.redirect(
         `${baseUrl}/dashboard/integrations?error=oauth_failed`,
@@ -294,7 +295,7 @@ export const oauthRoutes = new Elysia({ prefix: "/oauth" })
         302
       );
     } catch (error) {
-      console.error("Slack OAuth callback error:", error);
+      secureLog.error("Slack OAuth callback error:", error);
       const baseUrl = new URL(request.url).origin;
       return Response.redirect(
         `${baseUrl}/dashboard/integrations?error=slack_oauth_failed`,

@@ -2,7 +2,6 @@
 import { ClerkLoaded, ClerkLoading, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { Button } from "../ui/button";
-import { ThemeToggle } from "../theme-toggle";
 
 export default function NavbarClient() {
     return (
@@ -15,7 +14,6 @@ export default function NavbarClient() {
 
             <ClerkLoaded>
                 <SignedOut>
-                    <ThemeToggle />
                     <Button variant="outline">
                         <Link href="/sign-in">
                             Sign In
@@ -28,7 +26,6 @@ export default function NavbarClient() {
                             Dashboard
                         </Link>
                     </Button>
-                    <ThemeToggle />
                     <UserButton afterSignOutUrl="/" />
                 </SignedIn>
             </ClerkLoaded>
