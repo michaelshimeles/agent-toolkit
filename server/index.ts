@@ -11,7 +11,6 @@ import { keysRoutes } from "./keys";
 import { gatewayRoutes } from "./gateway";
 import { oauthRoutes } from "./oauth";
 import { webhooksRoutes } from "./webhooks";
-import { integrationsRoutes } from "./integrations";
 import { mcpRoutes } from "./mcp";
 
 export const app = new Elysia({ prefix: "/api" })
@@ -30,7 +29,6 @@ export const app = new Elysia({ prefix: "/api" })
           { name: "Keys", description: "API key management" },
           { name: "Gateway", description: "MCP gateway for tools and resources" },
           { name: "OAuth", description: "OAuth authentication flows" },
-          { name: "Integrations", description: "Integration-specific endpoints" },
           { name: "Webhooks", description: "External webhook handlers" },
         ],
       },
@@ -49,7 +47,6 @@ export const app = new Elysia({ prefix: "/api" })
   .use(gatewayRoutes)
   .use(oauthRoutes)
   .use(webhooksRoutes)
-  .use(integrationsRoutes)
   .use(mcpRoutes);
 
 // Export the app type for Eden
