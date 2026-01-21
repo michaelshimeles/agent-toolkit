@@ -1,13 +1,25 @@
 import Link from "next/link";
 import NavbarClient from "./navbar-client";
 
+import { Github } from "lucide-react";
+
 export default function Navbar() {
     return (
         <nav className="flex justify-between items-center h-16 px-6 border-b border-border/50">
             <Link href="/" className="text-base font-semibold tracking-tight hover:opacity-80 transition-opacity">
                 Toolkit
             </Link>
-            <NavbarClient />
+            <div className="flex items-center gap-4">
+                <a
+                    href="https://github.com/michaelshimeles/agent-toolkit"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                    <GitHubIcon className="h-5 w-5" />
+                </a>
+                <NavbarClient />
+            </div>
         </nav>
     )
 }
