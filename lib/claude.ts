@@ -4,9 +4,17 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
+import crypto from "crypto";
 
 // Cache for Claude clients (keyed by API key hash for security)
 const clientCache = new Map<string, Anthropic>();
+
+/**
+ * Hash an API key to create a unique cache key
+ */
+function hashApiKeyForCache(apiKey: string): string {
+  return crypto.createHash("sha256").update(apiKey).digest("hex");
+}
 
 /**
  * Get a Claude client with the specified API key, or fall back to environment variable
@@ -20,8 +28,8 @@ export function getClaudeClient(userApiKey?: string): Anthropic {
     );
   }
 
-  // Create a simple cache key (first 8 chars of key for identification)
-  const cacheKey = apiKey.slice(0, 16);
+  // Create a cache key using a hash for uniqueness and security
+  const cacheKey = hashApiKeyForCache(apiKey);
 
   if (!clientCache.has(cacheKey)) {
     clientCache.set(cacheKey, new Anthropic({ apiKey }));

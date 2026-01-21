@@ -2,7 +2,7 @@ import "@testing-library/jest-dom";
 
 // Mock environment variables
 process.env.NEXT_PUBLIC_CONVEX_URL = "https://test.convex.cloud";
-process.env.ENCRYPTION_KEY = "test-encryption-key-32-chars!!!";
+process.env.ENCRYPTION_KEY = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 process.env.INTERNAL_API_SECRET = "test-internal-secret";
 
 // Mock window.matchMedia

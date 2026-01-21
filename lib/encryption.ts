@@ -50,7 +50,8 @@ export function encrypt(text: string): string {
  * Decrypt a string (for OAuth tokens)
  */
 export function decrypt(encryptedText: string): string {
-  const [ivHex, encrypted] = encryptedText.split(":");
+  const [ivHex, ...encryptedParts] = encryptedText.split(":");
+  const encrypted = encryptedParts.join(":");
   const iv = Buffer.from(ivHex, "hex");
   const key = crypto.scryptSync(getEncryptionKey(), "salt", 32);
   const decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
