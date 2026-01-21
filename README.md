@@ -37,14 +37,23 @@ Deploy generated MCP servers to Vercel with a single click:
 
 ### Dashboard
 
+- **MCP Builder**: Create and manage MCP servers
+- **Skills**: Build and deploy agent skills
 - **API Keys**: Create and manage authentication keys
-- **Usage Analytics**: Track requests, errors, and latency
-- **Activity Logs**: Debug recent tool calls
+- **Settings**: Configure your own Anthropic API key (BYOK)
+
+### Bring Your Own Key (BYOK)
+
+Use your own Anthropic API key for AI generation:
+- Securely encrypted storage
+- Keys never leave your account
+- Full control over your API usage
 
 ## Tech Stack
 
-- **Frontend**: Next.js 16, React 19, Tailwind CSS
+- **Frontend**: Next.js 16, React 19, Tailwind CSS 4
 - **Backend**: Convex (real-time database + serverless functions)
+- **API Server**: Elysia (with Swagger documentation)
 - **Auth**: Clerk
 - **Code Editor**: Monaco Editor
 - **AI**: Claude API (Anthropic SDK)
@@ -57,7 +66,7 @@ Deploy generated MCP servers to Vercel with a single click:
 - Node.js 18+
 - A Convex account
 - A Clerk account
-- An Anthropic API key (for AI generation)
+- An Anthropic API key (optional - users can provide their own)
 
 ### Installation
 
@@ -80,8 +89,9 @@ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=<your-clerk-publishable-key>
 CLERK_SECRET_KEY=<your-clerk-secret-key>
 CLERK_WEBHOOK_SECRET=<your-clerk-webhook-secret>
 ENCRYPTION_KEY=<random-32-char-string>
-ANTHROPIC_API_KEY=<your-claude-api-key>
-VERCEL_TOKEN=<your-vercel-token>  # Optional, for deployment
+INTERNAL_API_SECRET=<random-secret-for-internal-apis>
+ANTHROPIC_API_KEY=<your-claude-api-key>  # Optional fallback
+VERCEL_TOKEN=<your-vercel-token>         # Optional, for deployment
 ```
 
 4. Initialize Convex:
@@ -111,14 +121,29 @@ toolkit/
 │   │   ├── skills/             # Agent Skills
 │   │   │   ├── page.tsx        # Skills list
 │   │   │   ├── new/            # Create new skill
-│   │   │   └── [skillId]/      # Skill editor
+│   │   │   ├── [skillId]/      # Skill editor
+│   │   │   └── templates/      # Skill templates
 │   │   ├── api-keys/           # API key management
-│   │   └── usage/              # Analytics
-│   └── api/                    # API routes
+│   │   ├── settings/           # User settings (BYOK)
+│   │   ├── integrations/       # Manage integrations
+│   │   ├── logs/               # Activity logs
+│   │   └── usage/              # Usage analytics
+│   └── api/                    # Next.js API routes
+├── server/                     # Elysia API server
+│   ├── index.ts                # Main server entry
+│   ├── gateway.ts              # MCP gateway
+│   ├── settings.ts             # User settings API
+│   ├── oauth.ts                # OAuth flows
+│   └── webhooks.ts             # Webhook handlers
 ├── convex/                     # Backend functions & schema
 ├── components/                 # React components
 └── lib/                        # Utilities
 ```
+
+## API Documentation
+
+The API is documented with Swagger. After starting the dev server, visit:
+- `/api/swagger` - Interactive API documentation
 
 ## Testing
 

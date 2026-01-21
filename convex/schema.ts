@@ -273,6 +273,15 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_name", ["userId", "name"]),
 
+  // User settings (including Anthropic API key)
+  userSettings: defineTable({
+    userId: v.id("users"),
+    anthropicApiKey: v.optional(v.string()), // Encrypted API key
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId"]),
+
   // Skill version history
   skillVersions: defineTable({
     skillId: v.id("skills"),

@@ -16,7 +16,7 @@ export default function Navbar() {
                     rel="noopener noreferrer"
                     className="text-muted-foreground hover:text-foreground transition-colors"
                 >
-                    <GitHubIcon className="h-5 w-5" />
+                    <Github className="h-5 w-5" />
                 </a>
                 <NavbarClient />
             </div>
