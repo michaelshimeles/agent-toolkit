@@ -8,6 +8,7 @@ import { useUser } from "@clerk/nextjs";
 import { Id } from "@/convex/_generated/dataModel";
 import { validateSkill, parseFrontmatter } from "@/lib/skills/validator";
 import { CodeEditor } from "@/components/code-editor";
+import { toast } from "sonner";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -259,8 +260,34 @@ export default function SkillEditorClient({
       });
       setChatInput("");
       setEditedSkillMd(null); // Reset to trigger reload
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to refine:", err);
+
+      // Parse the error message to extract a readable message
+      let errorMessage = "An unexpected error occurred. Please try again.";
+      const rawMessage = err.message || "";
+
+      // Try to extract JSON error message from Anthropic API errors
+      const jsonMatch = rawMessage.match(/\{"type":"error".*?"message":"([^"]+)"/);
+      if (jsonMatch) {
+        const apiMessage = jsonMatch[1];
+        // Rewrite Anthropic billing errors to clarify it's the AI provider, not this platform
+        if (apiMessage.toLowerCase().includes("credit balance")) {
+          errorMessage = "The AI provider (Anthropic) has insufficient credits. Please check your Anthropic account billing.";
+        } else {
+          errorMessage = apiMessage;
+        }
+      } else if (rawMessage.includes("ANTHROPIC_API_KEY")) {
+        errorMessage = "API key not configured. Please contact support.";
+      } else if (rawMessage.includes("Skill not found")) {
+        errorMessage = "Skill not found. It may have been deleted.";
+      } else if (rawMessage.includes("No text response")) {
+        errorMessage = "AI service returned an empty response. Please try again.";
+      }
+
+      toast.error("Failed to refine skill", {
+        description: errorMessage,
+      });
     } finally {
       setIsRefining(false);
     }
