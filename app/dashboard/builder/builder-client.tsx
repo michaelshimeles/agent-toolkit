@@ -313,7 +313,7 @@ export default function BuilderClient({ clerkId }: BuilderClientProps) {
               <div
                 key={server._id}
                 onClick={() => router.push(`/dashboard/builder/${server._id}`)}
-                className="flex flex-col p-6 border rounded-lg bg-card hover:bg-accent transition-colors group relative cursor-pointer"
+                className="flex flex-col p-6 border rounded-lg bg-card hover:border-foreground/20 transition-colors group relative cursor-pointer"
               >
                 {/* Delete button */}
                 <button
