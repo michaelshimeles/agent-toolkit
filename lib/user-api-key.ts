@@ -4,8 +4,8 @@
 
 import { getConvexClient } from "./convex";
 import { decrypt } from "./encryption";
-import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import { api } from "../convex/_generated/api";
+import { Id } from "../convex/_generated/dataModel";
 
 /**
  * Get the user's Anthropic API key by Clerk ID, decrypted
