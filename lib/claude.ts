@@ -4,19 +4,38 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
+import crypto from "crypto";
 
-// Initialize Claude client
-let claudeClient: Anthropic | null = null;
+// Cache for Claude clients (keyed by API key hash for security)
+const clientCache = new Map<string, Anthropic>();
 
-export function getClaudeClient(): Anthropic {
-  if (!claudeClient) {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error("ANTHROPIC_API_KEY environment variable is not set");
-    }
-    claudeClient = new Anthropic({ apiKey });
+/**
+ * Hash an API key to create a unique cache key
+ */
+function hashApiKeyForCache(apiKey: string): string {
+  return crypto.createHash("sha256").update(apiKey).digest("hex");
+}
+
+/**
+ * Get a Claude client with the specified API key, or fall back to environment variable
+ */
+export function getClaudeClient(userApiKey?: string): Anthropic {
+  const apiKey = userApiKey || process.env.ANTHROPIC_API_KEY;
+
+  if (!apiKey) {
+    throw new Error(
+      "No Anthropic API key available. Please configure your API key in Settings or set ANTHROPIC_API_KEY environment variable."
+    );
   }
-  return claudeClient;
+
+  // Create a cache key using a hash for uniqueness and security
+  const cacheKey = hashApiKeyForCache(apiKey);
+
+  if (!clientCache.has(cacheKey)) {
+    clientCache.set(cacheKey, new Anthropic({ apiKey }));
+  }
+
+  return clientCache.get(cacheKey)!;
 }
 
 /**
@@ -676,11 +695,11 @@ If you cannot identify any API endpoints, return a JSON with an empty endpoints 
 /**
  * Generate MCP server code from OpenAPI specification
  */
-export async function generateMCPFromOpenAPI(spec: any): Promise<{
+export async function generateMCPFromOpenAPI(spec: any, userApiKey?: string): Promise<{
   code: string;
   tools: Array<{ name: string; description: string; schema: any }>;
 }> {
-  const client = getClaudeClient();
+  const client = getClaudeClient(userApiKey);
 
   const response = await client.messages.create({
     model: "claude-sonnet-4-20250514",
@@ -713,8 +732,8 @@ export async function generateMCPFromOpenAPI(spec: any): Promise<{
 /**
  * Generate MCP server code from OpenAPI specification with streaming
  */
-export async function* generateMCPFromOpenAPIStream(spec: any): AsyncGenerator<string, void, unknown> {
-  const client = getClaudeClient();
+export async function* generateMCPFromOpenAPIStream(spec: any, userApiKey?: string): AsyncGenerator<string, void, unknown> {
+  const client = getClaudeClient(userApiKey);
 
   const stream = await client.messages.stream({
     model: "claude-sonnet-4-20250514",
@@ -737,14 +756,14 @@ export async function* generateMCPFromOpenAPIStream(spec: any): AsyncGenerator<s
 /**
  * Generate MCP server from documentation
  */
-export async function generateMCPFromDocs(docsHtml: string, url: string): Promise<{
+export async function generateMCPFromDocs(docsHtml: string, url: string, userApiKey?: string): Promise<{
   name: string;
   description: string;
   endpoints: any[];
   code: string;
   tools: any[];
 }> {
-  const client = getClaudeClient();
+  const client = getClaudeClient(userApiKey);
 
   const response = await client.messages.create({
     model: "claude-sonnet-4-20250514",
@@ -774,8 +793,8 @@ export async function generateMCPFromDocs(docsHtml: string, url: string): Promis
 /**
  * Generate MCP server from documentation with streaming
  */
-export async function* generateMCPFromDocsStream(docsHtml: string, url: string): AsyncGenerator<string, void, unknown> {
-  const client = getClaudeClient();
+export async function* generateMCPFromDocsStream(docsHtml: string, url: string, userApiKey?: string): AsyncGenerator<string, void, unknown> {
+  const client = getClaudeClient(userApiKey);
 
   const stream = await client.messages.stream({
     model: "claude-sonnet-4-20250514",
@@ -798,13 +817,13 @@ export async function* generateMCPFromDocsStream(docsHtml: string, url: string):
 /**
  * Analyze GitHub repository
  */
-export async function analyzeGitHubRepo(files: Array<{ path: string; content: string }>): Promise<{
+export async function analyzeGitHubRepo(files: Array<{ path: string; content: string }>, userApiKey?: string): Promise<{
   name: string;
   baseUrl: string;
   authMethod: string;
   endpoints: any[];
 }> {
-  const client = getClaudeClient();
+  const client = getClaudeClient(userApiKey);
 
   const filesContent = files
     .map((f) => `// ${f.path}\n${f.content}`)
@@ -839,7 +858,8 @@ export async function analyzeGitHubRepo(files: Array<{ path: string; content: st
  */
 export async function generateDocumentation(
   code: string,
-  tools: any[]
+  tools: any[],
+  userApiKey?: string
 ): Promise<{
   readme: string;
   toolDocs: Array<{
@@ -849,7 +869,7 @@ export async function generateDocumentation(
     example: string;
   }>;
 }> {
-  const client = getClaudeClient();
+  const client = getClaudeClient(userApiKey);
 
   const response = await client.messages.create({
     model: "claude-sonnet-4-20250514",
@@ -888,9 +908,10 @@ export async function generateDocumentation(
  */
 export async function validateAndFixCode(
   code: string,
-  errors: string[]
+  errors: string[],
+  userApiKey?: string
 ): Promise<string> {
-  const client = getClaudeClient();
+  const client = getClaudeClient(userApiKey);
 
   const response = await client.messages.create({
     model: "claude-sonnet-4-20250514",

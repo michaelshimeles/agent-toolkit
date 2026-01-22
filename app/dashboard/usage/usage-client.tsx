@@ -28,7 +28,7 @@ export default function UsageClient({ clerkId }: UsageClientProps) {
     <main className="min-h-screen px-6 py-10 md:py-14">
       <div className="max-w-5xl mx-auto">
         <div className="mb-10">
-          <h1 className="text-3xl font-semibold tracking-tight">Usage</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Usage Analytics</h1>
           <p className="text-base text-muted-foreground mt-2">
             Monitor your API usage and performance metrics
           </p>
@@ -172,8 +172,8 @@ export default function UsageClient({ clerkId }: UsageClientProps) {
                           <span
                             className={`px-2.5 py-1 inline-flex text-xs leading-5 font-medium rounded-full ${
                               log.status === "success"
-                                ? "bg-secondary text-foreground"
-                                : "bg-secondary text-muted-foreground"
+                                ? "bg-green-500/10 text-green-500"
+                                : "bg-destructive/10 text-destructive"
                             }`}
                           >
                             {log.status}

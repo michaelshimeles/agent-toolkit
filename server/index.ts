@@ -12,6 +12,7 @@ import { gatewayRoutes } from "./gateway";
 import { oauthRoutes } from "./oauth";
 import { webhooksRoutes } from "./webhooks";
 import { mcpRoutes } from "./mcp";
+import { settingsRoutes } from "./settings";
 
 export const app = new Elysia({ prefix: "/api" })
   // Swagger documentation
@@ -47,7 +48,8 @@ export const app = new Elysia({ prefix: "/api" })
   .use(gatewayRoutes)
   .use(oauthRoutes)
   .use(webhooksRoutes)
-  .use(mcpRoutes);
+  .use(mcpRoutes)
+  .use(settingsRoutes);
 
 // Export the app type for Eden
 export type App = typeof app;

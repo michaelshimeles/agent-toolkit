@@ -20,9 +20,9 @@ export default function Dashboard() {
             href: "/dashboard/api-keys",
         },
         {
-            title: "Usage",
-            description: "View analytics and logs",
-            href: "/dashboard/usage",
+            title: "Settings",
+            description: "Configure your Anthropic API key",
+            href: "/dashboard/settings",
         },
     ];
 
