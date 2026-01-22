@@ -8,6 +8,19 @@ import { auth } from "@clerk/nextjs/server";
 import { getConvexClient } from "@/lib/convex";
 import { encrypt, decrypt } from "@/lib/encryption";
 import { api } from "@/convex/_generated/api";
+import crypto from "crypto";
+
+/**
+ * Timing-safe comparison for secrets to prevent timing attacks
+ */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    // Still do a comparison to avoid timing leak on length difference
+    crypto.timingSafeEqual(Buffer.from(a), Buffer.from(a));
+    return false;
+  }
+  return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
 
 export const settingsRoutes = new Elysia({ prefix: "/settings" })
   // Get current settings (returns whether API key is configured, not the key itself)
@@ -167,7 +180,8 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
     try {
       // This endpoint requires internal authorization
       const internalSecret = headers["x-internal-secret"];
-      if (internalSecret !== process.env.INTERNAL_API_SECRET) {
+      const expectedSecret = process.env.INTERNAL_API_SECRET;
+      if (!internalSecret || !expectedSecret || !timingSafeEqual(internalSecret, expectedSecret)) {
         return new Response(JSON.stringify({ error: "Unauthorized" }), {
           status: 401,
           headers: { "Content-Type": "application/json" },
@@ -175,8 +189,8 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
       }
 
       const clerkId = headers["x-clerk-user-id"];
-      if (!clerkId) {
-        return new Response(JSON.stringify({ error: "User ID required" }), {
+      if (!clerkId || typeof clerkId !== "string" || clerkId.trim() === "") {
+        return new Response(JSON.stringify({ error: "Valid User ID required" }), {
           status: 400,
           headers: { "Content-Type": "application/json" },
         });

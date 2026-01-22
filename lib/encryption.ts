@@ -37,6 +37,8 @@ export function hashApiKey(apiKey: string): string {
  */
 export function encrypt(text: string): string {
   const iv = crypto.randomBytes(IV_LENGTH);
+  // Salt is static because the ENCRYPTION_KEY is already a cryptographically random 256-bit key.
+  // The scrypt KDF here adds computational cost for brute-force attacks, not additional entropy.
   const key = crypto.scryptSync(getEncryptionKey(), "salt", 32);
   const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
 

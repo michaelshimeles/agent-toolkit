@@ -234,7 +234,7 @@ export default function SettingsClient() {
               </li>
               <li>Sign in or create an account</li>
               <li>Navigate to Settings → API Keys</li>
-              <li>Click "Create Key" and copy the generated key</li>
+              <li>Click &quot;Create Key&quot; and copy the generated key</li>
               <li>Paste the key above</li>
             </ol>
           </div>
