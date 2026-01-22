@@ -18,6 +18,7 @@ import {
   AlertDialogMedia,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { ApiKeyRequiredNotice } from "@/components/api-key-required-notice";
 
 interface BuilderClientProps {
   clerkId: string;
@@ -50,11 +51,19 @@ export default function BuilderClient({ clerkId }: BuilderClientProps) {
     }
   }, [isLoaded, user, convexUser, ensureUser]);
 
+  // Check if user has API key configured
+  const hasApiKey = useQuery(
+    api.settings.hasAnthropicApiKey,
+    convexUser ? { userId: convexUser._id } : "skip"
+  );
+
   // Get user's generated servers
   const generatedServers = useQuery(
     api.builder.listUserServers,
     convexUser ? { userId: convexUser._id } : "skip"
   );
+
+  const isApiKeyMissing = hasApiKey === false;
 
   // Convex actions for generating MCP servers
   const generateFromOpenAPI = useAction(api.aiActions.generateFromOpenAPI);
@@ -184,6 +193,11 @@ export default function BuilderClient({ clerkId }: BuilderClientProps) {
         </p>
       </div>
 
+      {/* API Key Required Notice */}
+      {isApiKeyMissing && (
+        <ApiKeyRequiredNotice className="mb-8" />
+      )}
+
       {/* Input Section */}
       <div className="border rounded-lg p-6 mb-8">
         <h2 className="text-lg font-semibold mb-4">Create MCP Server from API</h2>
@@ -242,8 +256,9 @@ export default function BuilderClient({ clerkId }: BuilderClientProps) {
 
         <button
           onClick={handleAnalyze}
-          disabled={isAnalyzing || !sourceInput.trim() || convexUser === undefined}
+          disabled={isAnalyzing || !sourceInput.trim() || convexUser === undefined || isApiKeyMissing}
           className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          title={isApiKeyMissing ? "Configure your API key in Settings first" : undefined}
         >
           {isAnalyzing && (
             <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
@@ -263,7 +278,7 @@ export default function BuilderClient({ clerkId }: BuilderClientProps) {
               />
             </svg>
           )}
-          {isAnalyzing ? "Analyzing..." : convexUser === undefined ? "Loading..." : "Analyze API"}
+          {isAnalyzing ? "Analyzing..." : isApiKeyMissing ? "API Key Required" : convexUser === undefined ? "Loading..." : "Analyze API"}
         </button>
 
         {isAnalyzing && analysisStatus && (
