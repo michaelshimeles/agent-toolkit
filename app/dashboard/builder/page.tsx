@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import BuilderPageClient from "./builder-page-client";
+import BuilderClient from "./builder-client";
 
 export default async function BuilderPage() {
   const { userId } = await auth();
@@ -9,5 +9,5 @@ export default async function BuilderPage() {
     redirect("/sign-in");
   }
 
-  return <BuilderPageClient clerkId={userId} />;
+  return <BuilderClient clerkId={userId} />;
 }

@@ -304,6 +304,7 @@ export async function getProjectDomains(params: {
 export function prepareMCPServerFiles(params: {
   serverCode: string;
   serverName: string;
+  serverId?: string;
 }): Record<string, string> {
   const files: Record<string, string> = {};
 
@@ -324,16 +325,13 @@ export function prepareMCPServerFiles(params: {
     2
   );
 
-  // vercel.json - using Edge runtime for better performance
-  // Edge functions are auto-detected when runtime = "edge" is exported
+  // vercel.json - serverless functions only, no static output
+  // Edge runtime is declared via `export const runtime = "edge"` in the code file
   files["vercel.json"] = JSON.stringify(
     {
       version: 2,
-      functions: {
-        "api/index.ts": {
-          runtime: "edge",
-        },
-      },
+      buildCommand: "",
+      outputDirectory: "",
       routes: [
         {
           src: "/(.*)",
@@ -345,8 +343,8 @@ export function prepareMCPServerFiles(params: {
     2
   );
 
-  // Main server file - wrap with API key authentication
-  files["api/index.ts"] = wrapServerCodeWithAuth(params.serverCode, params.serverName);
+  // Main server file - wrap with API key authentication and analytics
+  files["api/index.ts"] = wrapServerCodeWithAuth(params.serverCode, params.serverName, params.serverId);
 
   // README
   files["README.md"] = `# ${params.serverName}
@@ -394,13 +392,172 @@ Add this to your Claude Desktop config:
 }
 
 /**
- * Wrap generated server code with proper Vercel exports
+ * Get the analytics ingestion URL
+ */
+function getAnalyticsUrl(): string {
+  // In production, use the actual domain
+  // This should be configured via environment variable
+  return process.env.MCP_HUB_URL || "https://mcp-hub.vercel.app";
+}
+
+/**
+ * Generate the analytics helper code to inject into deployed servers
+ */
+function generateAnalyticsCode(serverName: string, serverId?: string): string {
+  const analyticsUrl = getAnalyticsUrl();
+  
+  return `
+// ============================================================================
+// Anonymous Analytics (non-blocking, privacy-preserving)
+// ============================================================================
+
+const MCP_HUB_ANALYTICS_URL = "${analyticsUrl}/api/analytics/ingest";
+const MCP_SERVER_ID = "${serverId || serverName}";
+const MCP_SERVER_SLUG = "${serverName}";
+
+// Simple session tracking (ephemeral, not tied to users)
+let sessionCallIndex = 0;
+const sessionId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+// Anonymize parameters - only keep structure, never values
+function anonymizeParams(params) {
+  if (params === null) return "null";
+  if (params === undefined) return "undefined";
+  const type = typeof params;
+  if (type === "string") return "string";
+  if (type === "number") return "number";
+  if (type === "boolean") return "boolean";
+  if (Array.isArray(params)) {
+    if (params.length === 0) return "array<empty>";
+    return "array<" + JSON.stringify(anonymizeParams(params[0])) + ">";
+  }
+  if (type === "object") {
+    const result = {};
+    for (const [key, value] of Object.entries(params)) {
+      result[key] = anonymizeParams(value);
+    }
+    return result;
+  }
+  return "unknown";
+}
+
+// Calculate parameter complexity
+function getParamComplexity(params, depth = 0) {
+  let maxDepth = depth;
+  let count = 0;
+  let maxArrayLen = 0;
+  
+  if (params && typeof params === "object") {
+    if (Array.isArray(params)) {
+      maxArrayLen = Math.max(maxArrayLen, params.length);
+      for (const item of params) {
+        const sub = getParamComplexity(item, depth + 1);
+        maxDepth = Math.max(maxDepth, sub.depth);
+        maxArrayLen = Math.max(maxArrayLen, sub.maxArrayLength);
+      }
+    } else {
+      const entries = Object.entries(params);
+      count = entries.length;
+      for (const [, v] of entries) {
+        const sub = getParamComplexity(v, depth + 1);
+        maxDepth = Math.max(maxDepth, sub.depth);
+        maxArrayLen = Math.max(maxArrayLen, sub.maxArrayLength);
+      }
+    }
+  }
+  
+  return { depth: maxDepth, count, maxArrayLength: maxArrayLen };
+}
+
+// Estimate token count (~4 chars per token)
+function estimateTokens(data) {
+  if (!data) return 0;
+  try {
+    const text = typeof data === "string" ? data : JSON.stringify(data);
+    return Math.ceil(text.length / 4);
+  } catch {
+    return 0;
+  }
+}
+
+// Send analytics (fire-and-forget, non-blocking)
+async function sendAnalytics(data) {
+  try {
+    await fetch(MCP_HUB_ANALYTICS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        serverId: MCP_SERVER_ID,
+        serverSlug: MCP_SERVER_SLUG,
+        sessionHash: sessionId,
+        ...data,
+      }),
+    });
+  } catch {
+    // Silently ignore analytics errors - never affect tool execution
+  }
+}
+
+// Wrap tool execution with analytics
+function withAnalytics(toolName, args, executeFn) {
+  return async () => {
+    sessionCallIndex++;
+    const startTime = Date.now();
+    const complexity = getParamComplexity(args);
+    
+    let status = "success";
+    let errorCategory = undefined;
+    let result = undefined;
+    
+    try {
+      result = await executeFn();
+      return result;
+    } catch (error) {
+      status = "error";
+      const msg = error?.message?.toLowerCase() || "";
+      if (msg.includes("timeout")) errorCategory = "timeout";
+      else if (msg.includes("rate limit") || msg.includes("429")) {
+        status = "rate_limited";
+        errorCategory = "rate_limit";
+      }
+      else if (msg.includes("unauthorized") || msg.includes("403") || msg.includes("401")) errorCategory = "auth";
+      else if (msg.includes("validation") || msg.includes("invalid")) errorCategory = "validation";
+      else errorCategory = "unknown";
+      throw error;
+    } finally {
+      // Send analytics asynchronously (non-blocking)
+      sendAnalytics({
+        toolName,
+        latencyMs: Date.now() - startTime,
+        status,
+        errorCategory,
+        inputTokenEstimate: estimateTokens(args),
+        outputTokenEstimate: estimateTokens(result),
+        sessionCallIndex,
+        parameterSchema: anonymizeParams(args),
+        paramDepth: complexity.depth,
+        paramCount: complexity.count,
+        arrayMaxLength: complexity.maxArrayLength,
+        isRetry: false,
+        retryCount: 0,
+        executionMode: "sequential",
+        hitRateLimit: status === "rate_limited",
+      });
+    }
+  };
+}
+`;
+}
+
+/**
+ * Wrap generated server code with proper Vercel exports and analytics
  * 
  * The generated code from Claude already includes API key validation,
  * but exports app.handle which doesn't work properly with Vercel Edge.
- * This wrapper ensures the code uses app.fetch for proper Web API compatibility.
+ * This wrapper ensures the code uses app.fetch for proper Web API compatibility,
+ * and injects anonymous analytics collection.
  */
-function wrapServerCodeWithAuth(serverCode: string, serverName: string): string {
+function wrapServerCodeWithAuth(serverCode: string, serverName: string, serverId?: string): string {
   // Remove any existing exports that use .handle (doesn't work with Edge)
   let fixedCode = serverCode
     .replace(/export const GET = app\.handle;?\s*/g, '')
@@ -413,8 +570,10 @@ function wrapServerCodeWithAuth(serverCode: string, serverName: string): string 
     .replace(/export const GET = .*app\.fetch.*;\s*/g, '')
     .replace(/export const POST = .*app\.fetch.*;\s*/g, '');
   
-  // Add proper Vercel Edge-compatible exports
+  // Add analytics code and proper Vercel Edge-compatible exports
   return `// @ts-nocheck
+${generateAnalyticsCode(serverName, serverId)}
+
 ${fixedCode}
 
 // Vercel Edge Runtime exports
@@ -435,16 +594,18 @@ export const runtime = "edge";
 export async function deployMCPServer(params: {
   serverName: string;
   serverCode: string;
+  serverId?: string;
   env?: Record<string, string>;
   token?: string;
 }): Promise<{
   deployment: VercelDeployment;
   url: string;
 }> {
-  // Prepare files
+  // Prepare files (including analytics instrumentation)
   const files = prepareMCPServerFiles({
     serverCode: params.serverCode,
     serverName: params.serverName,
+    serverId: params.serverId,
   });
 
   // Deploy to Vercel

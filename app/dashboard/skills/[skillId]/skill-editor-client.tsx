@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useQuery, useAction, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { Id } from "@/convex/_generated/dataModel";
 import { validateSkill, parseFrontmatter } from "@/lib/skills/validator";
 import { CodeEditor } from "@/components/code-editor";
+import { SkillTestRunner } from "@/components/skills/skill-test-runner";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -25,7 +26,7 @@ interface SkillEditorClientProps {
   skillId: string;
 }
 
-type PreviewMode = "simulated" | "files";
+type PreviewMode = "simulated" | "files" | "test";
 type SelectedFile = "SKILL.md" | { type: "script" | "reference" | "asset"; index: number };
 type NewFileType = "script" | "reference";
 
@@ -97,7 +98,6 @@ export default function SkillEditorClient({
 
   // Mutations and actions
   const updateSkill = useMutation(api.skills.updateSkill);
-  const refineSkill = useAction(api.skillGeneration.refineSkill);
   const deployToNewRepo = useAction(api.skillDeploy.deployToNewRepo);
 
   // Initialize edited content when skill loads
@@ -254,36 +254,36 @@ export default function SkillEditorClient({
 
     setIsRefining(true);
     try {
-      await refineSkill({
-        skillId: skill._id,
-        feedback: chatInput.trim(),
+      const response = await fetch("/api/refine-skill", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          skillId: skill._id,
+          feedback: chatInput.trim(),
+        }),
       });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to refine skill");
+      }
+
       setChatInput("");
       setEditedSkillMd(null); // Reset to trigger reload
-    } catch (err: any) {
+      setEditedScripts(new Map()); // Reset script edits
+      setEditedReferences(new Map()); // Reset reference edits
+      setHasUnsavedChanges(false);
+
+      toast.success("Skill refined", {
+        description: result.changesSummary || "Changes applied successfully",
+      });
+    } catch (err: unknown) {
       console.error("Failed to refine:", err);
 
-      // Parse the error message to extract a readable message
-      let errorMessage = "An unexpected error occurred. Please try again.";
-      const rawMessage = err.message || "";
-
-      // Try to extract JSON error message from Anthropic API errors
-      const jsonMatch = rawMessage.match(/\{"type":"error".*?"message":"([^"]+)"/);
-      if (jsonMatch) {
-        const apiMessage = jsonMatch[1];
-        // Rewrite Anthropic billing errors to clarify it's the AI provider, not this platform
-        if (apiMessage.toLowerCase().includes("credit balance")) {
-          errorMessage = "The AI provider (Anthropic) has insufficient credits. Please check your Anthropic account billing.";
-        } else {
-          errorMessage = apiMessage;
-        }
-      } else if (rawMessage.includes("ANTHROPIC_API_KEY")) {
-        errorMessage = "API key not configured. Please contact support.";
-      } else if (rawMessage.includes("Skill not found")) {
-        errorMessage = "Skill not found. It may have been deleted.";
-      } else if (rawMessage.includes("No text response")) {
-        errorMessage = "AI service returned an empty response. Please try again.";
-      }
+      const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred. Please try again.";
 
       toast.error("Failed to refine skill", {
         description: errorMessage,
@@ -869,6 +869,29 @@ export default function SkillEditorClient({
               >
                 File View
               </button>
+              <button
+                onClick={() => setPreviewMode("test")}
+                className={`px-3 py-1 text-sm rounded flex items-center gap-1.5 ${
+                  previewMode === "test"
+                    ? "bg-primary/10 text-primary"
+                    : "hover:bg-accent"
+                }`}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polygon points="5 3 19 12 5 21 5 3" />
+                </svg>
+                Test
+              </button>
             </div>
           </div>
 
@@ -936,6 +959,12 @@ export default function SkillEditorClient({
                   )}
                 </div>
               </div>
+            ) : previewMode === "test" ? (
+              <SkillTestRunner
+                skillId={skillId}
+                skillName={skill.name}
+                skillDescription={skill.description}
+              />
             ) : (
               <div className="space-y-2">
                 <pre className="text-xs bg-muted p-4 rounded-lg overflow-auto max-h-96">

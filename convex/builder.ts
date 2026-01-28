@@ -158,6 +158,7 @@ export const _storeEncryptedApiKey = mutation({
 
     if (existingKey) {
       await ctx.db.patch(existingKey._id, {
+        serverId: args.serverId,
         serviceKey: args.encryptedKey,
         keyName: args.keyName,
         lastUsed: Date.now(),
@@ -242,13 +243,22 @@ export const listExternalApiKeys = query({
 
 /**
  * Get all external API keys for a specific server
+ * Keys are stored per-user-per-service, so we look up the server's owner
+ * and return all their keys that match the server's required services
  */
 export const listExternalApiKeysForServer = query({
   args: { serverId: v.id("generatedServers") },
   handler: async (ctx, args) => {
+    // Get the server to find its owner
+    const server = await ctx.db.get(args.serverId);
+    if (!server) {
+      return [];
+    }
+
+    // Get all keys for this user
     const keys = await ctx.db
       .query("externalApiKeys")
-      .withIndex("by_server", (q) => q.eq("serverId", args.serverId))
+      .withIndex("by_user", (q) => q.eq("userId", server.userId))
       .collect();
 
     // Return metadata only, not the actual keys
