@@ -42,6 +42,10 @@ export default function NewSkillClient({ clerkId }: NewSkillClientProps) {
 
   // Create skill mutation
   const createSkill = useMutation(api.skills.createSkill);
+  const trackSkillCreation = useMutation(api.analytics.trackSkillCreation);
+
+  // Track creation start time for duration analytics
+  const [creationStartTime] = useState(() => Date.now());
 
   // Handle saving the skill from the chat artifact
   const handleSaveSkill = useCallback(
@@ -81,6 +85,23 @@ export default function NewSkillClient({ clerkId }: NewSkillClientProps) {
           mcpDependencies: artifact.mcpDependencies,
         });
 
+        // Track creation analytics
+        const durationMs = Date.now() - creationStartTime;
+        const completedInterviewFields = interviewAnswers
+          ? Object.values(interviewAnswers).filter(
+              (v) => v && (typeof v === "string" ? v.trim() !== "" : Array.isArray(v) && v.length > 0)
+            ).length
+          : 0;
+        await trackSkillCreation({
+          userId: convexUser._id,
+          skillId,
+          creationMode: interviewAnswers ? "guided" : "chat",
+          interviewCompleted: completedInterviewFields >= 4, // At least problem, users, workflow, examples
+          interviewStepsCompleted: completedInterviewFields,
+          usedTemplate: false, // TODO: track template usage when template feature is fully integrated
+          durationMs,
+        });
+
         // Navigate to the skill editor page
         router.push(`/dashboard/skills/${skillId}`);
       } catch (err) {
@@ -93,7 +114,7 @@ export default function NewSkillClient({ clerkId }: NewSkillClientProps) {
         throw err;
       }
     },
-    [convexUser, createSkill, router]
+    [convexUser, createSkill, trackSkillCreation, router, creationStartTime, interviewAnswers]
   );
 
   // Handle interview completion - switch to chat mode with answers

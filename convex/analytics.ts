@@ -1,6 +1,5 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
-import { Doc, Id } from "./_generated/dataModel";
 
 // ============================================================================
 // MUTATIONS
@@ -65,6 +64,61 @@ export const logToolCall = mutation({
       timestamp: now,
       dayOfWeek: date.getUTCDay(),
     });
+  },
+});
+
+/**
+ * Track skill creation event to analyze creation mode preferences.
+ */
+export const trackSkillCreation = mutation({
+  args: {
+    userId: v.id("users"),
+    skillId: v.id("skills"),
+    creationMode: v.union(v.literal("chat"), v.literal("guided")),
+    interviewCompleted: v.boolean(),
+    interviewStepsCompleted: v.optional(v.number()),
+    usedTemplate: v.boolean(),
+    templateId: v.optional(v.string()),
+    durationMs: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.insert("skillCreationEvents", {
+      ...args,
+      createdAt: Date.now(),
+    });
+  },
+});
+
+/**
+ * Get skill creation mode analytics.
+ */
+export const getCreationModeStats = query({
+  args: {
+    startDate: v.optional(v.number()),
+    endDate: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    let events = await ctx.db.query("skillCreationEvents").collect();
+
+    if (args.startDate) {
+      events = events.filter((e) => e.createdAt >= args.startDate!);
+    }
+    if (args.endDate) {
+      events = events.filter((e) => e.createdAt <= args.endDate!);
+    }
+
+    const chatCount = events.filter((e) => e.creationMode === "chat").length;
+    const guidedCount = events.filter((e) => e.creationMode === "guided").length;
+    const interviewCompletedCount = events.filter((e) => e.interviewCompleted).length;
+    const templateUsedCount = events.filter((e) => e.usedTemplate).length;
+
+    return {
+      total: events.length,
+      chatMode: chatCount,
+      guidedMode: guidedCount,
+      interviewCompletionRate: guidedCount > 0 ? interviewCompletedCount / guidedCount : 0,
+      templateUsageRate: events.length > 0 ? templateUsedCount / events.length : 0,
+    };
   },
 });
 

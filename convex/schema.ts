@@ -304,7 +304,8 @@ export default defineSchema({
   })
     .index("by_user", ["userId"])
     .index("by_status", ["status"])
-    .index("by_name", ["userId", "name"]),
+    .index("by_name", ["userId", "name"])
+    .index("by_category", ["category"]),
 
   // User settings (including Anthropic API key)
   userSettings: defineTable({
@@ -378,6 +379,25 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_experiment", ["experimentId"]),
+
+  // Skill creation analytics (tracks creation mode preference)
+  skillCreationEvents: defineTable({
+    userId: v.id("users"),
+    skillId: v.id("skills"),
+    creationMode: v.union(v.literal("chat"), v.literal("guided")),
+    // Interview completion tracking
+    interviewCompleted: v.boolean(),
+    interviewStepsCompleted: v.optional(v.number()), // How many steps completed before switching to chat
+    // Template tracking
+    usedTemplate: v.boolean(),
+    templateId: v.optional(v.string()),
+    // Timing
+    durationMs: v.optional(v.number()), // Time from start to save
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_mode", ["creationMode"])
+    .index("by_date", ["createdAt"]),
 
   // Anonymous tool call analytics (no user IDs stored)
   anonymousToolCalls: defineTable({
