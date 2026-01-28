@@ -12,10 +12,12 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import ReactMarkdown from "react-markdown";
 import { matchSkillToTemplates, getTemplateById, TemplateMatch } from "@/lib/template-matcher";
+import { InterviewAnswers, formatAnswersForPrompt } from "@/lib/skill-interview";
 
 interface SkillCreatorChatProps {
   clerkId: string;
   onSave: (artifact: SkillArtifact) => Promise<void>;
+  interviewAnswers?: InterviewAnswers | null;
 }
 
 /**
@@ -290,6 +292,7 @@ function TypingIndicator() {
 export default function SkillCreatorChat({
   clerkId,
   onSave,
+  interviewAnswers,
 }: SkillCreatorChatProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -297,8 +300,8 @@ export default function SkillCreatorChat({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [templateSuggestions, setTemplateSuggestions] = useState<TemplateMatch[]>([]);
-  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [hasCheckedTemplates, setHasCheckedTemplates] = useState(false);
+  const [hasSentInterviewContext, setHasSentInterviewContext] = useState(false);
 
   // Get user initial for avatar
   const userInitial = clerkId.charAt(0).toUpperCase();
@@ -340,6 +343,15 @@ export default function SkillCreatorChat({
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
+  // Auto-send interview context as first message when provided
+  useEffect(() => {
+    if (interviewAnswers && !hasSentInterviewContext && messages.length === 0) {
+      const context = formatAnswersForPrompt(interviewAnswers);
+      setHasSentInterviewContext(true);
+      sendMessage({ text: `I completed the guided interview. Here's what I need:\n\n${context}\n\nPlease create a skill based on this information.` });
+    }
+  }, [interviewAnswers, hasSentInterviewContext, messages.length, sendMessage]);
+
   // Check for template matches after first user message
   useEffect(() => {
     if (!hasCheckedTemplates && messages.length === 1 && messages[0].role === "user") {
@@ -363,7 +375,6 @@ export default function SkillCreatorChat({
     const template = getTemplateById(templateId);
     if (!template) return;
 
-    setSelectedTemplate(templateId);
     setTemplateSuggestions([]);
 
     // Build a context message with the template content

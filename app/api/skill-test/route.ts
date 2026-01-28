@@ -24,6 +24,7 @@ interface SkillTestResponse {
     output: number;
   };
   latencyMs: number;
+  apiKeySource: "request" | "user" | "platform";
 }
 
 export async function POST(req: Request) {
@@ -100,13 +101,20 @@ export async function POST(req: Request) {
 
     // Determine which API key to use (priority: request body > user settings > env)
     let apiKey = requestApiKey;
+    let apiKeySource: "request" | "user" | "platform" = "request";
 
     if (!apiKey) {
       apiKey = await getUserAnthropicApiKeyByClerkId(clerkId) || undefined;
+      if (apiKey) {
+        apiKeySource = "user";
+      }
     }
 
     if (!apiKey) {
       apiKey = process.env.ANTHROPIC_API_KEY;
+      if (apiKey) {
+        apiKeySource = "platform";
+      }
     }
 
     if (!apiKey) {
@@ -168,6 +176,7 @@ Follow the skill instructions above to respond to the user's request. If the ski
         output: response.usage.output_tokens,
       },
       latencyMs,
+      apiKeySource,
     };
 
     return NextResponse.json(result);

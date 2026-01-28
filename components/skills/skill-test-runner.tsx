@@ -20,6 +20,8 @@ interface SkillTestRunnerProps {
   skillDescription: string;
 }
 
+type ApiKeySource = "request" | "user" | "platform";
+
 interface TestResult {
   id: string;
   prompt: string;
@@ -32,6 +34,7 @@ interface TestResult {
     latencyMs: number;
   };
   error?: string;
+  apiKeySource?: ApiKeySource;
 }
 
 // Generate suggested prompts based on skill description
@@ -39,9 +42,6 @@ function generateSuggestedPrompts(description: string): string[] {
   const lowerDesc = description.toLowerCase();
   const prompts: string[] = [];
 
-  // Extract key action words and concepts from description
-  const actionWords = ["create", "generate", "build", "analyze", "convert", "format", "write", "help", "assist"];
-  const foundActions = actionWords.filter(action => lowerDesc.includes(action));
 
   // Common prompt patterns based on skill type
   if (lowerDesc.includes("code") || lowerDesc.includes("programming") || lowerDesc.includes("developer")) {
@@ -120,15 +120,24 @@ export function SkillTestRunner({
         status: "success",
         timestamp: new Date(),
         metrics: {
-          inputTokens: data.inputTokens || 0,
-          outputTokens: data.outputTokens || 0,
+          inputTokens: data.tokensUsed?.input || 0,
+          outputTokens: data.tokensUsed?.output || 0,
           latencyMs: data.latencyMs || latencyMs,
         },
+        apiKeySource: data.apiKeySource,
       };
 
       setCurrentResult(result);
       setTestHistory((prev) => [result, ...prev].slice(0, 5));
-      toast.success("Test completed successfully");
+
+      // Show warning if using platform API key
+      if (data.apiKeySource === "platform") {
+        toast.warning("Test completed using platform credits", {
+          description: "Configure your own API key in Settings to avoid using shared credits.",
+        });
+      } else {
+        toast.success("Test completed successfully");
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred";
 
@@ -377,6 +386,35 @@ export function SkillTestRunner({
                 </span>
               </div>
             </div>
+
+            {/* Platform API Key Warning */}
+            {currentResult.apiKeySource === "platform" && (
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-amber-600 dark:text-amber-400 shrink-0"
+                >
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+                <span className="text-amber-700 dark:text-amber-300">
+                  Using shared platform credits.{" "}
+                  <a href="/dashboard/settings" className="underline hover:text-amber-600 dark:hover:text-amber-200">
+                    Configure your own API key
+                  </a>{" "}
+                  to avoid limits.
+                </span>
+              </div>
+            )}
 
             {/* Response Panel */}
             <div

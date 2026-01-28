@@ -20,6 +20,7 @@ interface NewSkillClientProps {
 export default function NewSkillClient({ clerkId }: NewSkillClientProps) {
   const [error, setError] = useState<string | null>(null);
   const [creationMode, setCreationMode] = useState<CreationMode>("chat");
+  const [interviewAnswers, setInterviewAnswers] = useState<InterviewAnswers | null>(null);
   const router = useRouter();
   const { user, isLoaded } = useUser();
 
@@ -95,14 +96,15 @@ export default function NewSkillClient({ clerkId }: NewSkillClientProps) {
     [convexUser, createSkill, router]
   );
 
-  // Handle interview completion - switch to chat mode
-  const handleInterviewComplete = useCallback((_answers: InterviewAnswers) => {
-    // TODO: Pass answers as initial context to chat
+  // Handle interview completion - switch to chat mode with answers
+  const handleInterviewComplete = useCallback((answers: InterviewAnswers) => {
+    setInterviewAnswers(answers);
     setCreationMode("chat");
   }, []);
 
   // Handle switching from interview to chat with partial answers
-  const handleSwitchToChat = useCallback((_partialAnswers: InterviewAnswers) => {
+  const handleSwitchToChat = useCallback((partialAnswers: InterviewAnswers) => {
+    setInterviewAnswers(partialAnswers);
     setCreationMode("chat");
   }, []);
 
@@ -253,6 +255,7 @@ export default function NewSkillClient({ clerkId }: NewSkillClientProps) {
           <SkillCreatorChat
             clerkId={clerkId}
             onSave={handleSaveSkill}
+            interviewAnswers={interviewAnswers}
           />
         )}
       </div>
