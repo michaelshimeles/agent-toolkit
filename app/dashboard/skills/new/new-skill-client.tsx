@@ -21,6 +21,8 @@ export default function NewSkillClient({ clerkId }: NewSkillClientProps) {
   const [error, setError] = useState<string | null>(null);
   const [creationMode, setCreationMode] = useState<CreationMode>("chat");
   const [interviewAnswers, setInterviewAnswers] = useState<InterviewAnswers | null>(null);
+  // Track if user ever used guided mode (for analytics)
+  const [usedGuidedMode, setUsedGuidedMode] = useState(false);
   const router = useRouter();
   const { user, isLoaded } = useUser();
 
@@ -92,10 +94,11 @@ export default function NewSkillClient({ clerkId }: NewSkillClientProps) {
               (v) => v && (typeof v === "string" ? v.trim() !== "" : Array.isArray(v) && v.length > 0)
             ).length
           : 0;
+        // Track as "guided" if user ever visited guided mode (even if they switched to chat)
         await trackSkillCreation({
           userId: convexUser._id,
           skillId,
-          creationMode: interviewAnswers ? "guided" : "chat",
+          creationMode: usedGuidedMode || interviewAnswers ? "guided" : "chat",
           interviewCompleted: completedInterviewFields >= 4, // At least problem, users, workflow, examples
           interviewStepsCompleted: completedInterviewFields,
           usedTemplate: false, // TODO: track template usage when template feature is fully integrated
@@ -114,7 +117,7 @@ export default function NewSkillClient({ clerkId }: NewSkillClientProps) {
         throw err;
       }
     },
-    [convexUser, createSkill, trackSkillCreation, router, creationStartTime, interviewAnswers]
+    [convexUser, createSkill, trackSkillCreation, router, creationStartTime, interviewAnswers, usedGuidedMode]
   );
 
   // Handle interview completion - switch to chat mode with answers
@@ -178,7 +181,10 @@ export default function NewSkillClient({ clerkId }: NewSkillClientProps) {
               Chat
             </button>
             <button
-              onClick={() => setCreationMode("guided")}
+              onClick={() => {
+                setCreationMode("guided");
+                setUsedGuidedMode(true);
+              }}
               className={cn(
                 "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
                 creationMode === "guided"

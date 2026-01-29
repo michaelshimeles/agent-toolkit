@@ -153,12 +153,19 @@ export const recordExperimentMetrics = mutation({
   args: {
     experimentId: v.id("skillExperiments"),
     variant: v.union(v.literal("control"), v.literal("treatment")),
+    /**
+     * Metrics for this batch of invocations.
+     * - invocations: Number of invocations in this batch
+     * - successes/errors: Counts for this batch
+     * - latencyMs: Average latency per invocation (will be weighted by invocations count)
+     * - tokens: Average tokens per invocation (will be weighted by invocations count)
+     */
     metrics: v.object({
-      invocations: v.number(),
-      successes: v.number(),
-      errors: v.number(),
-      latencyMs: v.number(),
-      tokens: v.number(),
+      invocations: v.number(),     // Number of invocations in this batch
+      successes: v.number(),       // Successful invocations count
+      errors: v.number(),          // Failed invocations count
+      latencyMs: v.number(),       // Average latency per invocation (ms)
+      tokens: v.number(),          // Average tokens per invocation
     }),
   },
   handler: async (ctx, args) => {

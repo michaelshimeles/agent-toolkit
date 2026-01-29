@@ -194,8 +194,10 @@ export default function SkillInterviewWizard({
   // Handle final submission
   const handleComplete = useCallback(() => {
     if (canProceed(state)) {
-      // Clear localStorage on complete
-      localStorage.removeItem(STORAGE_KEY);
+      // Clear localStorage on complete (with SSR safety check)
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(STORAGE_KEY);
+      }
       onComplete(state.answers);
     }
   }, [state, onComplete]);
