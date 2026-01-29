@@ -69,9 +69,11 @@ export default function SkillInterviewWizard({
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
-  // Persist state to localStorage
+  // Persist state to localStorage (with SSR safety check)
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    if (typeof window !== "undefined") {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
   }, [state]);
 
   // Get current step index and all steps

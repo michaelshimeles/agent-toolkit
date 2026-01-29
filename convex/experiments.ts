@@ -190,9 +190,9 @@ export const recordExperimentMetrics = mutation({
     const newErrors = results.errorCount + args.metrics.errors;
 
     // For running averages, we need to track totals
-    // Use weighted average approach
-    const totalLatencyMs = results.avgLatencyMs * results.totalInvocations + args.metrics.latencyMs;
-    const totalTokens = results.avgTokens * results.totalInvocations + args.metrics.tokens;
+    // Use weighted average approach - multiply incoming metrics by invocation count
+    const totalLatencyMs = results.avgLatencyMs * results.totalInvocations + args.metrics.latencyMs * args.metrics.invocations;
+    const totalTokens = results.avgTokens * results.totalInvocations + args.metrics.tokens * args.metrics.invocations;
 
     // Recalculate averages
     const newAvgLatencyMs = newInvocations > 0 ? totalLatencyMs / newInvocations : 0;
