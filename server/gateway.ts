@@ -18,6 +18,19 @@ import {
   getSlackOAuthConfig,
   type OAuthConfig,
 } from "@/lib/oauth";
+import {
+  anonymizeParams,
+  getParamComplexity,
+  estimateTokens,
+  generateSessionHash,
+  categorizeError,
+  extractModelId,
+  extractClientId,
+  getGeoRegion,
+  detectRetry,
+  detectExecutionMode,
+  getSessionCallIndex,
+} from "@/lib/analytics-utils";
 
 /**
  * Get OAuth config for a given integration
@@ -127,7 +140,7 @@ export const gatewayRoutes = new Elysia({ prefix: "/gateway" })
   // Call a tool endpoint
   .post(
     "/tools/call",
-    async ({ body, headers }) => {
+    async ({ body, headers, request }) => {
       const apiKey = headers["x-api-key"];
 
       if (!apiKey) {
@@ -136,6 +149,7 @@ export const gatewayRoutes = new Elysia({ prefix: "/gateway" })
 
       try {
         const convex = getConvexClient();
+        const requestHeaders = request.headers;
 
         const user = await convex.query(api.auth.getUserByApiKey, {
           keyHash: hashApiKey(apiKey),
@@ -147,6 +161,25 @@ export const gatewayRoutes = new Elysia({ prefix: "/gateway" })
 
         const { name: toolName, arguments: toolArgs } = body as { name: string; arguments?: any };
         const [integrationSlug, actualToolName] = parseNamespace(toolName);
+
+        // Generate anonymous analytics context
+        const sessionHash = generateSessionHash(requestHeaders);
+        const sessionCallIndex = getSessionCallIndex(sessionHash);
+        const startTime = Date.now();
+        
+        // Extract model and client info from headers (anonymous)
+        const modelId = extractModelId(requestHeaders);
+        const clientId = extractClientId(requestHeaders);
+        const clientVersion = requestHeaders.get("x-client-version") || undefined;
+        const geoRegion = getGeoRegion(requestHeaders);
+        
+        // Detect execution mode
+        const { mode: executionMode, batchId, batchSize } = detectExecutionMode(sessionHash, startTime);
+        
+        // Calculate parameter complexity (anonymized)
+        const parameterSchema = toolArgs ? anonymizeParams(toolArgs) : undefined;
+        const complexity = toolArgs ? getParamComplexity(toolArgs) : { depth: 0, count: 0, maxArrayLength: 0 };
+        const inputTokenEstimate = estimateTokens(toolArgs);
 
         const connection = await convex.query(
           api.integrations.getUserConnection,
@@ -190,7 +223,6 @@ export const gatewayRoutes = new Elysia({ prefix: "/gateway" })
         }
 
         const functionUrl = `${process.env.VERCEL_URL || "http://localhost:3000"}${integration.functionPath}`;
-        const startTime = Date.now();
 
         const response = await fetch(functionUrl, {
           method: "POST",
@@ -205,21 +237,81 @@ export const gatewayRoutes = new Elysia({ prefix: "/gateway" })
         });
 
         const latency = Date.now() - startTime;
+        
+        // Determine status for analytics
+        let analyticsStatus: "success" | "error" | "rate_limited" = response.ok ? "success" : "error";
+        let hitRateLimit = false;
+        let rateLimitType: string | undefined;
+        let errorCategory: string | undefined;
+        
+        if (response.status === 429) {
+          analyticsStatus = "rate_limited";
+          hitRateLimit = true;
+          rateLimitType = response.headers.get("x-ratelimit-type") || "per_minute";
+        } else if (!response.ok) {
+          errorCategory = categorizeError(new Error(`HTTP ${response.status}`));
+        }
+        
+        // Detect retry
+        const { isRetry, retryCount } = detectRetry(sessionHash, toolName, !response.ok);
+        
+        // Get result for token estimation
+        let result: any;
+        let outputTokenEstimate = 0;
+        
+        if (response.ok) {
+          result = await response.json();
+          outputTokenEstimate = estimateTokens(result);
+        }
 
-        await convex.mutation(api.usage.log, {
-          userId: user._id,
-          integrationId: integration._id,
-          toolName: actualToolName,
-          latencyMs: latency,
-          status: response.ok ? "success" : "error",
-        });
+        // Log both user-centric and anonymous analytics in parallel
+        await Promise.all([
+          // Existing user-centric logging
+          convex.mutation(api.usage.log, {
+            userId: user._id,
+            integrationId: integration._id,
+            toolName: actualToolName,
+            latencyMs: latency,
+            status: response.ok ? "success" : "error",
+          }),
+          // Anonymous analytics logging
+          convex.mutation(api.analytics.logToolCall, {
+            sessionHash,
+            integrationSlug,
+            toolName,
+            modelId: modelId || undefined,
+            clientId: clientId || undefined,
+            clientVersion,
+            latencyMs: latency,
+            status: analyticsStatus,
+            errorCategory,
+            inputTokenEstimate,
+            outputTokenEstimate,
+            isRetry,
+            retryCount,
+            sessionCallIndex,
+            executionMode,
+            batchId: batchId || undefined,
+            batchSize: batchSize || undefined,
+            parameterSchema,
+            paramDepth: complexity.depth,
+            paramCount: complexity.count,
+            arrayMaxLength: complexity.maxArrayLength,
+            geoRegion: geoRegion || undefined,
+            hitRateLimit,
+            rateLimitType,
+          }).catch((err: Error) => {
+            // Don't fail the request if analytics logging fails
+            console.error("Failed to log analytics:", err);
+          }),
+        ]);
 
         if (!response.ok) {
           const error = await response.text();
           return new Response(error, { status: response.status });
         }
 
-        return await response.json();
+        return result;
       } catch (error) {
         console.error("Error calling tool:", error);
         return new Response(

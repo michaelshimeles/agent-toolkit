@@ -452,10 +452,11 @@ async function deployToVercel(ctx: any, server: any): Promise<string> {
     }
   }
 
-  // Use real Vercel API to deploy
+  // Use real Vercel API to deploy (with serverId for analytics tracking)
   const result = await deployMCPServer({
     serverName: server.slug,
     serverCode: server.code,
+    serverId: server._id,
     env: envVars,
   });
 

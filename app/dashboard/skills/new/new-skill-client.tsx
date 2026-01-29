@@ -1,25 +1,28 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useQuery, useAction, useMutation } from "convex/react";
+import { useState, useEffect, useCallback } from "react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
-import { SKILL_TEMPLATES } from "@/lib/skills/templates";
+import { cn } from "@/lib/utils";
+import SkillCreatorChat from "./skill-creator-chat";
+import { SkillArtifact } from "@/components/skills/skill-artifact-preview";
+import SkillInterviewWizard from "@/components/skills/skill-interview-wizard";
+import { InterviewAnswers } from "@/lib/skill-interview";
+
+type CreationMode = "chat" | "guided";
 
 interface NewSkillClientProps {
   clerkId: string;
 }
 
 export default function NewSkillClient({ clerkId }: NewSkillClientProps) {
-  const searchParams = useSearchParams();
-  const templateParam = searchParams.get("template");
-
-  const [description, setDescription] = useState("");
-  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(templateParam);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [generationStatus, setGenerationStatus] = useState("");
+  const [creationMode, setCreationMode] = useState<CreationMode>("chat");
+  const [interviewAnswers, setInterviewAnswers] = useState<InterviewAnswers | null>(null);
+  // Track if user ever used guided mode (for analytics)
+  const [usedGuidedMode, setUsedGuidedMode] = useState(false);
   const router = useRouter();
   const { user, isLoaded } = useUser();
 
@@ -39,326 +42,249 @@ export default function NewSkillClient({ clerkId }: NewSkillClientProps) {
     }
   }, [isLoaded, user, convexUser, ensureUser]);
 
-  // Generate skill action
-  const generateSkill = useAction(api.skillGeneration.generateSkill);
+  // Create skill mutation
+  const createSkill = useMutation(api.skills.createSkill);
+  const trackSkillCreation = useMutation(api.analytics.trackSkillCreation);
 
-  // Pre-fill description from template param
-  useEffect(() => {
-    if (templateParam && !description) {
-      const template = SKILL_TEMPLATES.find((t) => t.id === templateParam);
-      if (template) {
-        setDescription(
-          `Create a ${template.name.toLowerCase()} skill that ${template.description.toLowerCase()}`
+  // Track creation start time for duration analytics
+  const [creationStartTime] = useState(() => Date.now());
+
+  // Handle saving the skill from the chat artifact
+  const handleSaveSkill = useCallback(
+    async (artifact: SkillArtifact) => {
+      if (!convexUser) {
+        throw new Error("User profile not found. Please refresh the page.");
+      }
+
+      if (!artifact.name || !artifact.description || !artifact.skillMd) {
+        throw new Error(
+          "Incomplete skill data. Please ensure the skill has a name, description, and content."
         );
       }
-    }
-  }, [templateParam, description]);
 
-  const handleGenerate = async () => {
-    if (!description.trim()) {
-      setError("Please describe the skill you want to create.");
-      return;
-    }
+      setError(null);
 
-    if (!convexUser) {
-      setError("User profile not found. Please refresh the page.");
-      return;
-    }
+      try {
+        const skillId = await createSkill({
+          userId: convexUser._id,
+          name: artifact.name,
+          description: artifact.description,
+          files: {
+            skillMd: artifact.skillMd,
+            scripts: artifact.scripts || [],
+            references: artifact.references || [],
+          },
+          metadata: {
+            version: "1.0",
+            license: "MIT",
+          },
+          // New fields from artifact
+          summary: artifact.summary,
+          tags: artifact.tags,
+          category: artifact.category,
+          workflow: artifact.workflow,
+          examples: artifact.examples,
+          mcpDependencies: artifact.mcpDependencies,
+        });
 
-    setIsGenerating(true);
-    setError(null);
+        // Track creation analytics
+        const durationMs = Date.now() - creationStartTime;
+        const completedInterviewFields = interviewAnswers
+          ? Object.values(interviewAnswers).filter(
+              (v) => v && (typeof v === "string" ? v.trim() !== "" : Array.isArray(v) && v.length > 0)
+            ).length
+          : 0;
+        // Track as "guided" if user ever visited guided mode (even if they switched to chat)
+        await trackSkillCreation({
+          userId: convexUser._id,
+          skillId,
+          creationMode: usedGuidedMode || interviewAnswers ? "guided" : "chat",
+          interviewCompleted: completedInterviewFields >= 4, // At least problem, users, workflow, examples
+          interviewStepsCompleted: completedInterviewFields,
+          usedTemplate: false, // TODO: track template usage when template feature is fully integrated
+          durationMs,
+        });
 
-    // Get template data if a template is selected
-    const template = selectedTemplate
-      ? SKILL_TEMPLATES.find((t) => t.id === selectedTemplate)
-      : null;
+        // Navigate to the skill editor page
+        router.push(`/dashboard/skills/${skillId}`);
+      } catch (err) {
+        console.error("Failed to save skill:", err);
+        const errorMessage =
+          err instanceof Error
+            ? err.message
+            : "Failed to save skill. Please try again.";
+        setError(errorMessage);
+        throw err;
+      }
+    },
+    [convexUser, createSkill, trackSkillCreation, router, creationStartTime, interviewAnswers, usedGuidedMode]
+  );
 
-    setGenerationStatus(
-      template
-        ? "Creating skill from template..."
-        : "Generating your skill with AI..."
-    );
+  // Handle interview completion - switch to chat mode with answers
+  const handleInterviewComplete = useCallback((answers: InterviewAnswers) => {
+    setInterviewAnswers(answers);
+    setCreationMode("chat");
+  }, []);
 
-    try {
-      const result = await generateSkill({
-        userId: convexUser._id,
-        description: description.trim(),
-        templateId: selectedTemplate || undefined,
-        templateData: template
-          ? {
-              skillMd: template.skillMd,
-              scripts: template.scripts,
-              references: template.references,
-            }
-          : undefined,
-      });
-
-      setGenerationStatus("Skill created successfully!");
-
-      // Navigate to the skill editor
-      router.push(`/dashboard/skills/${result.skillId}`);
-    } catch (err) {
-      console.error("Failed to generate skill:", err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to generate skill. Please try again."
-      );
-    } finally {
-      setIsGenerating(false);
-      setGenerationStatus("");
-    }
-  };
-
-  const handleTemplateSelect = (templateId: string) => {
-    const template = SKILL_TEMPLATES.find((t) => t.id === templateId);
-    if (template) {
-      setSelectedTemplate(templateId);
-      // Pre-fill with template description as starting point
-      setDescription(
-        `Create a ${template.name.toLowerCase()} skill that ${template.description.toLowerCase()}`
-      );
-    }
-  };
+  // Handle switching from interview to chat with partial answers
+  const handleSwitchToChat = useCallback((partialAnswers: InterviewAnswers) => {
+    setInterviewAnswers(partialAnswers);
+    setCreationMode("chat");
+  }, []);
 
   return (
-    <main className="flex flex-col h-screen px-6 py-8">
-      <div className="mb-8">
-        <button
-          onClick={() => router.push("/dashboard/skills")}
-          className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-4"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M19 12H5" />
-            <path d="M12 19l-7-7 7-7" />
-          </svg>
-          Back to Skills
-        </button>
-        <h1 className="text-2xl font-bold">Create New Skill</h1>
-        <p className="text-sm text-muted-foreground mt-2">
-          Describe your skill in natural language and AI will generate it for
-          you
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Input Section */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="border rounded-lg p-6">
-            <h2 className="text-lg font-semibold mb-4">
-              Describe Your Skill
-            </h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              Tell us what you want your skill to do. Be specific about the
-              tasks, behaviors, and any scripts or tools it should include.
-            </p>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Example: Create a skill that helps review Python code for security vulnerabilities. It should check for SQL injection, XSS, hardcoded secrets, and insecure dependencies. Include a Python script that can scan files and generate a report."
-              className="w-full h-48 px-4 py-3 border rounded-lg bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary"
-              disabled={isGenerating}
-            />
-
-            <div className="flex items-center justify-between mt-4">
-              <div className="text-xs text-muted-foreground">
-                {description.length}/2000 characters
-              </div>
-              <button
-                onClick={handleGenerate}
-                disabled={
-                  isGenerating ||
-                  !description.trim() ||
-                  convexUser === undefined
-                }
-                className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                {isGenerating && (
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                      fill="none"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    />
-                  </svg>
-                )}
-                {isGenerating
-                  ? "Generating..."
-                  : convexUser === undefined
-                    ? "Loading..."
-                    : "Generate Skill"}
-              </button>
-            </div>
-
-            {isGenerating && generationStatus && (
-              <div className="mt-4 p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-                <p className="text-sm text-blue-400 flex items-center gap-2">
-                  <svg
-                    className="animate-pulse h-4 w-4"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                  >
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
-                  </svg>
-                  {generationStatus}
-                </p>
-              </div>
-            )}
-
-            {error && (
-              <div className="mt-4 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
-                <p className="text-sm text-red-400">{error}</p>
-              </div>
-            )}
-          </div>
-
-          {/* Tips */}
-          <div className="border rounded-lg p-6 bg-muted/30">
-            <h3 className="font-medium mb-3">Tips for better skills</h3>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li className="flex items-start gap-2">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="text-primary mt-0.5"
-                >
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-                Be specific about what tasks the skill should help with
-              </li>
-              <li className="flex items-start gap-2">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="text-primary mt-0.5"
-                >
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-                Mention if you need scripts (Python, Bash, JavaScript)
-              </li>
-              <li className="flex items-start gap-2">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="text-primary mt-0.5"
-                >
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-                Include example scenarios or use cases
-              </li>
-              <li className="flex items-start gap-2">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="text-primary mt-0.5"
-                >
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-                Specify any output formats or preferences
-              </li>
-            </ul>
-          </div>
-        </div>
-
-        {/* Templates Sidebar */}
-        <div className="space-y-6">
-          <div className="border rounded-lg p-6">
-            <h2 className="text-lg font-semibold mb-4">Start from Template</h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              Choose a template as a starting point
-            </p>
-            <div className="space-y-2">
-              {SKILL_TEMPLATES.slice(0, 6).map((template) => (
-                <button
-                  key={template.id}
-                  onClick={() => handleTemplateSelect(template.id)}
-                  disabled={isGenerating}
-                  className={`w-full p-3 text-left border rounded-lg transition-colors ${
-                    selectedTemplate === template.id
-                      ? "border-primary bg-primary/5"
-                      : "hover:bg-accent"
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  <div className="font-medium text-sm">{template.name}</div>
-                  <div className="text-xs text-muted-foreground line-clamp-1">
-                    {template.description}
-                  </div>
-                </button>
-              ))}
-            </div>
+    <main className="flex flex-col h-screen">
+      {/* Header */}
+      <div className="px-6 py-4 border-b">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
             <button
-              onClick={() => router.push("/dashboard/skills/templates")}
-              className="w-full mt-4 text-sm text-primary hover:underline"
+              onClick={() => router.push("/dashboard/skills")}
+              className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
-              View all templates
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M19 12H5" />
+                <path d="M12 19l-7-7 7-7" />
+              </svg>
+              Back to Skills
+            </button>
+            <div className="h-6 w-px bg-border" />
+            <div>
+              <h1 className="text-lg font-semibold">Create New Skill</h1>
+              <p className="text-xs text-muted-foreground">
+                {creationMode === "guided" ? "Answer questions to create your skill" : "Describe your skill and AI will help you create it"}
+              </p>
+            </div>
+          </div>
+
+          {/* Mode Toggle */}
+          <div className="flex items-center gap-1 p-1 bg-muted rounded-lg">
+            <button
+              onClick={() => setCreationMode("chat")}
+              className={cn(
+                "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+                creationMode === "chat"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Chat
+            </button>
+            <button
+              onClick={() => {
+                setCreationMode("guided");
+                setUsedGuidedMode(true);
+              }}
+              className={cn(
+                "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+                creationMode === "guided"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Guided
             </button>
           </div>
-
-          {/* Selected template info */}
-          {selectedTemplate && (
-            <div className="border rounded-lg p-4 bg-primary/5 border-primary">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">Selected Template</span>
-                <button
-                  onClick={() => setSelectedTemplate(null)}
-                  className="text-xs text-muted-foreground hover:text-foreground"
-                >
-                  Clear
-                </button>
-              </div>
-              <div className="text-sm">
-                {SKILL_TEMPLATES.find((t) => t.id === selectedTemplate)?.name}
-              </div>
-            </div>
-          )}
         </div>
+      </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="mx-6 mt-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+          <div className="flex items-start gap-3">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-destructive shrink-0 mt-0.5"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-destructive">
+                Failed to save skill
+              </p>
+              <p className="text-sm text-destructive/80 mt-1">{error}</p>
+            </div>
+            <button
+              onClick={() => setError(null)}
+              className="text-destructive/60 hover:text-destructive"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Main Content */}
+      <div className="flex-1 px-6 pt-6 pb-4 overflow-hidden">
+        {convexUser === undefined ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="flex items-center gap-3 text-muted-foreground">
+              <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  fill="none"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                />
+              </svg>
+              <span>Loading...</span>
+            </div>
+          </div>
+        ) : creationMode === "guided" ? (
+          <div className="h-full overflow-auto">
+            <SkillInterviewWizard
+              onComplete={handleInterviewComplete}
+              onSwitchToChat={handleSwitchToChat}
+            />
+          </div>
+        ) : (
+          <SkillCreatorChat
+            clerkId={clerkId}
+            onSave={handleSaveSkill}
+            interviewAnswers={interviewAnswers}
+          />
+        )}
       </div>
     </main>
   );

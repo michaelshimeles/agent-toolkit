@@ -85,7 +85,52 @@ export const createSkill = mutation({
       compatibility: v.optional(v.string()),
       allowedTools: v.optional(v.array(v.string())),
     }),
+    mcpDependencies: v.optional(
+      v.array(
+        v.object({
+          mcpSlug: v.string(),
+          mcpName: v.string(),
+          description: v.string(),
+          requiredTools: v.array(v.string()),
+          optional: v.boolean(),
+        })
+      )
+    ),
     templateId: v.optional(v.string()),
+    // New fields for summary.md vision
+    summary: v.optional(
+      v.object({
+        shortDescription: v.optional(v.string()),
+        triggers: v.optional(v.array(v.string())),
+        scope: v.optional(v.string()),
+        estimatedTokens: v.optional(v.number()),
+      })
+    ),
+    tags: v.optional(v.array(v.string())),
+    category: v.optional(v.string()),
+    workflow: v.optional(
+      v.object({
+        steps: v.optional(
+          v.array(
+            v.object({
+              order: v.optional(v.number()),
+              title: v.string(),
+              description: v.optional(v.string()),
+              mcpTools: v.optional(v.array(v.string())),
+            })
+          )
+        ),
+      })
+    ),
+    examples: v.optional(
+      v.array(
+        v.object({
+          title: v.string(),
+          input: v.string(),
+          output: v.string(),
+        })
+      )
+    ),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -109,7 +154,14 @@ export const createSkill = mutation({
       status: "draft",
       files: args.files,
       metadata: args.metadata,
+      mcpDependencies: args.mcpDependencies,
       templateId: args.templateId,
+      // New fields
+      summary: args.summary,
+      tags: args.tags,
+      category: args.category,
+      workflow: args.workflow,
+      examples: args.examples,
       createdAt: now,
       updatedAt: now,
     });
@@ -175,6 +227,17 @@ export const updateSkill = mutation({
         allowedTools: v.optional(v.array(v.string())),
       })
     ),
+    mcpDependencies: v.optional(
+      v.array(
+        v.object({
+          mcpSlug: v.string(),
+          mcpName: v.string(),
+          description: v.string(),
+          requiredTools: v.array(v.string()),
+          optional: v.boolean(),
+        })
+      )
+    ),
     changeDescription: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -190,6 +253,7 @@ export const updateSkill = mutation({
     if (args.description !== undefined) updates.description = args.description;
     if (args.files !== undefined) updates.files = args.files;
     if (args.metadata !== undefined) updates.metadata = args.metadata;
+    if (args.mcpDependencies !== undefined) updates.mcpDependencies = args.mcpDependencies;
 
     await ctx.db.patch(args.skillId, updates);
 

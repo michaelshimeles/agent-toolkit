@@ -10,6 +10,19 @@ import { Elysia, t } from "elysia";
 import { getConvexClient } from "@/lib/convex";
 import { hashApiKey } from "@/lib/encryption";
 import { api } from "@/convex/_generated/api";
+import {
+  anonymizeParams,
+  getParamComplexity,
+  estimateTokens,
+  generateSessionHash,
+  categorizeError,
+  extractModelId,
+  extractClientId,
+  getGeoRegion,
+  detectRetry,
+  detectExecutionMode,
+  getSessionCallIndex,
+} from "@/lib/analytics-utils";
 
 const PROTOCOL_VERSION = "2024-11-05";
 const SERVER_NAME = "mcp-hub";
@@ -97,14 +110,39 @@ async function handleToolsList(userId: string): Promise<JsonRpcResponse["result"
 }
 
 /**
- * Handle tools/call method
+ * Handle tools/call method with anonymous analytics logging
  */
 async function handleToolsCall(
   userId: string,
-  params: { name: string; arguments?: Record<string, unknown> }
+  params: { name: string; arguments?: Record<string, unknown> },
+  headers: Headers
 ): Promise<JsonRpcResponse["result"]> {
   const convex = getConvexClient();
   const { name: toolName, arguments: toolArgs } = params;
+  
+  // Start timing for latency measurement
+  const startTime = Date.now();
+  
+  // Generate analytics context (anonymous)
+  const sessionHash = generateSessionHash(headers);
+  const sessionCallIndex = getSessionCallIndex(sessionHash);
+  const timestamp = startTime;
+  
+  // Extract model and client info from headers
+  const modelId = extractModelId(headers);
+  const clientId = extractClientId(headers);
+  const clientVersion = headers.get("x-client-version") || undefined;
+  const geoRegion = getGeoRegion(headers);
+  
+  // Detect execution mode
+  const { mode: executionMode, batchId, batchSize } = detectExecutionMode(sessionHash, timestamp);
+  
+  // Calculate parameter complexity (anonymized)
+  const parameterSchema = toolArgs ? anonymizeParams(toolArgs) : undefined;
+  const complexity = toolArgs ? getParamComplexity(toolArgs) : { depth: 0, count: 0, maxArrayLength: 0 };
+  
+  // Estimate input tokens
+  const inputTokenEstimate = estimateTokens(toolArgs);
 
   // Parse integration/tool name
   const slashIndex = toolName.indexOf("/");
@@ -115,46 +153,153 @@ async function handleToolsCall(
   const integrationSlug = toolName.substring(0, slashIndex);
   const actualToolName = toolName.substring(slashIndex + 1);
 
-  // Check if user has this integration enabled
-  const connection = await convex.query(api.integrations.getUserConnection, {
-    userId: userId as any,
-    integrationSlug,
-  });
+  // Variables for analytics
+  let status: "success" | "error" | "rate_limited" = "success";
+  let errorCategory: string | undefined;
+  let result: unknown;
+  let hitRateLimit = false;
+  let rateLimitType: string | undefined;
+  let outputTokenEstimate = 0;
 
-  if (!connection?.enabled) {
-    throw new Error(`Integration '${integrationSlug}' is not enabled`);
+  try {
+    // Check if user has this integration enabled
+    const connection = await convex.query(api.integrations.getUserConnection, {
+      userId: userId as any,
+      integrationSlug,
+    });
+
+    if (!connection?.enabled) {
+      throw new Error(`Integration '${integrationSlug}' is not enabled`);
+    }
+
+    // Get integration details
+    const integration = await convex.query(api.integrations.getBySlug, {
+      slug: integrationSlug,
+    });
+
+    if (!integration) {
+      throw new Error(`Integration '${integrationSlug}' not found`);
+    }
+
+    // Call the integration's function
+    const functionUrl = `${process.env.VERCEL_URL || "http://localhost:3000"}${integration.functionPath}`;
+
+    const response = await fetch(functionUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-OAuth-Token": connection.oauthTokenEncrypted || "",
+      },
+      body: JSON.stringify({
+        toolName: actualToolName,
+        arguments: toolArgs,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      
+      // Check for rate limiting
+      if (response.status === 429) {
+        status = "rate_limited";
+        hitRateLimit = true;
+        rateLimitType = response.headers.get("x-ratelimit-type") || "per_minute";
+      } else {
+        status = "error";
+        errorCategory = categorizeError(new Error(error));
+      }
+      
+      throw new Error(error);
+    }
+
+    result = await response.json();
+    outputTokenEstimate = estimateTokens(result);
+    status = "success";
+
+  } catch (error) {
+    if (status === "success") {
+      status = "error";
+      errorCategory = categorizeError(error);
+    }
+    
+    // Detect if this was a retry
+    const { isRetry, retryCount } = detectRetry(sessionHash, toolName, true);
+    
+    // Log analytics even on error
+    const latencyMs = Date.now() - startTime;
+    
+    try {
+      await convex.mutation(api.analytics.logToolCall, {
+        sessionHash,
+        integrationSlug,
+        toolName,
+        modelId: modelId || undefined,
+        clientId: clientId || undefined,
+        clientVersion,
+        latencyMs,
+        status,
+        errorCategory,
+        inputTokenEstimate,
+        outputTokenEstimate: 0,
+        isRetry,
+        retryCount,
+        sessionCallIndex,
+        executionMode,
+        batchId: batchId || undefined,
+        batchSize: batchSize || undefined,
+        parameterSchema,
+        paramDepth: complexity.depth,
+        paramCount: complexity.count,
+        arrayMaxLength: complexity.maxArrayLength,
+        geoRegion: geoRegion || undefined,
+        hitRateLimit,
+        rateLimitType,
+      });
+    } catch (analyticsError) {
+      // Don't fail the request if analytics logging fails
+      console.error("Failed to log analytics:", analyticsError);
+    }
+    
+    throw error;
   }
 
-  // Get integration details
-  const integration = await convex.query(api.integrations.getBySlug, {
-    slug: integrationSlug,
-  });
+  // Calculate final latency
+  const latencyMs = Date.now() - startTime;
+  
+  // Detect retry (successful call)
+  const { isRetry, retryCount } = detectRetry(sessionHash, toolName, false);
 
-  if (!integration) {
-    throw new Error(`Integration '${integrationSlug}' not found`);
+  // Log anonymous analytics
+  try {
+    await convex.mutation(api.analytics.logToolCall, {
+      sessionHash,
+      integrationSlug,
+      toolName,
+      modelId: modelId || undefined,
+      clientId: clientId || undefined,
+      clientVersion,
+      latencyMs,
+      status,
+      inputTokenEstimate,
+      outputTokenEstimate,
+      isRetry,
+      retryCount,
+      sessionCallIndex,
+      executionMode,
+      batchId: batchId || undefined,
+      batchSize: batchSize || undefined,
+      parameterSchema,
+      paramDepth: complexity.depth,
+      paramCount: complexity.count,
+      arrayMaxLength: complexity.maxArrayLength,
+      geoRegion: geoRegion || undefined,
+      hitRateLimit,
+      rateLimitType,
+    });
+  } catch (analyticsError) {
+    // Don't fail the request if analytics logging fails
+    console.error("Failed to log analytics:", analyticsError);
   }
-
-  // Call the integration's function
-  const functionUrl = `${process.env.VERCEL_URL || "http://localhost:3000"}${integration.functionPath}`;
-
-  const response = await fetch(functionUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-OAuth-Token": connection.oauthTokenEncrypted || "",
-    },
-    body: JSON.stringify({
-      toolName: actualToolName,
-      arguments: toolArgs,
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(error);
-  }
-
-  const result = await response.json();
 
   // Return in MCP content format
   return {
@@ -200,7 +345,8 @@ function handlePromptsList(): JsonRpcResponse["result"] {
  */
 async function processRequest(
   request: JsonRpcRequest,
-  user: { _id: string } | null
+  user: { _id: string } | null,
+  headers: Headers
 ): Promise<JsonRpcResponse> {
   const id = request.id ?? null;
 
@@ -255,7 +401,7 @@ async function processRequest(
             id,
           };
         }
-        result = await handleToolsCall(user._id, request.params as any);
+        result = await handleToolsCall(user._id, request.params as any, headers);
         break;
 
       case "resources/list":
@@ -311,21 +457,24 @@ export const mcpRoutes = new Elysia({ prefix: "/mcp" })
   // Main JSON-RPC endpoint
   .post(
     "/",
-    async ({ body, headers }) => {
+    async ({ body, headers, request }) => {
       const apiKey = headers["x-api-key"];
       const user = await authenticateUser(apiKey);
+      
+      // Get the full Headers object for analytics
+      const requestHeaders = request.headers;
 
       // Handle batch requests
       if (Array.isArray(body)) {
         const responses = await Promise.all(
-          body.map((req) => processRequest(req as JsonRpcRequest, user))
+          body.map((req) => processRequest(req as JsonRpcRequest, user, requestHeaders))
         );
         // Filter out null responses (notifications)
         return responses.filter((r) => r !== null);
       }
 
       // Handle single request
-      const response = await processRequest(body as JsonRpcRequest, user);
+      const response = await processRequest(body as JsonRpcRequest, user, requestHeaders);
       if (response === null) {
         return new Response(null, { status: 204 });
       }

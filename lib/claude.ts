@@ -703,7 +703,7 @@ export async function generateMCPFromOpenAPI(spec: any, userApiKey?: string): Pr
 
   const response = await client.messages.create({
     model: "claude-sonnet-4-20250514",
-    max_tokens: 8000,
+    max_tokens: 16384,
     messages: [
       {
         role: "user",
@@ -737,7 +737,7 @@ export async function* generateMCPFromOpenAPIStream(spec: any, userApiKey?: stri
 
   const stream = await client.messages.stream({
     model: "claude-sonnet-4-20250514",
-    max_tokens: 8000,
+    max_tokens: 16384,
     messages: [
       {
         role: "user",
@@ -767,7 +767,7 @@ export async function generateMCPFromDocs(docsHtml: string, url: string, userApi
 
   const response = await client.messages.create({
     model: "claude-sonnet-4-20250514",
-    max_tokens: 8000,
+    max_tokens: 16384,
     messages: [
       {
         role: "user",
@@ -798,7 +798,7 @@ export async function* generateMCPFromDocsStream(docsHtml: string, url: string, 
 
   const stream = await client.messages.stream({
     model: "claude-sonnet-4-20250514",
-    max_tokens: 8000,
+    max_tokens: 16384,
     messages: [
       {
         role: "user",
@@ -831,7 +831,7 @@ export async function analyzeGitHubRepo(files: Array<{ path: string; content: st
 
   const response = await client.messages.create({
     model: "claude-sonnet-4-20250514",
-    max_tokens: 8000,
+    max_tokens: 16384,
     messages: [
       {
         role: "user",
@@ -915,7 +915,7 @@ export async function validateAndFixCode(
 
   const response = await client.messages.create({
     model: "claude-sonnet-4-20250514",
-    max_tokens: 8000,
+    max_tokens: 16384,
     messages: [
       {
         role: "user",
